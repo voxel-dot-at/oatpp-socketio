@@ -13,3 +13,10 @@ CMakeUserPresets.json
 
 build/
 .vscode/
+
+# emacs
+*~
+
+# TS/JS:
+node_modules/
+dist/
