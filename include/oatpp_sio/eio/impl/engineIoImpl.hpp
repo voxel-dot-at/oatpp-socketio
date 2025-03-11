@@ -6,7 +6,6 @@
 
 #include "oatpp/json/ObjectMapper.hpp"
 #include "oatpp/macro/component.hpp"
-#include "oatpp/json/Serializer.hpp"
 
 #include "oatpp_sio/eio/engineIo.hpp"
 #include "oatpp_sio/eio/connection.hpp"
@@ -38,14 +37,17 @@ class EngineImpl : public Engine
     virtual ResponsePtr startLpConnection(
         const oatpp::web::server::api::ApiController* controller,
         const std::shared_ptr<oatpp::web::protocol::http::incoming::Request>
-            req) override;
+            req,
+        bool testSioLayer = false) override;
 
     virtual std::string startConnection(
         const std::shared_ptr<oatpp::web::protocol::http::incoming::Request>
-            req) override;
+            req,
+        bool testSioLayer = false) override;
 
     /** start websocket-based connection */
-    virtual void registerConnection(std::shared_ptr<WSConnection> wsConn);
+    virtual void registerConnection(std::shared_ptr<WSConnection> wsConn,
+                                    bool testSioLayer = false);
 
     virtual void removeConnection(std::string& sid) override;
 

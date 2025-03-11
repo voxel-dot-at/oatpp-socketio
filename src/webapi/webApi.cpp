@@ -24,6 +24,7 @@
 #include "oatpp-swagger/Controller.hpp"
 
 #include "oatpp_sio/webapi/controller/eioController.hpp"
+#include "oatpp_sio/webapi/controller/sioController.hpp"
 #include "oatpp_sio/webapi/controller/staticContentsController.hpp"
 
 #include "oatpp_sio/webapi/appComponent.hpp"
@@ -127,6 +128,8 @@ static void addInternalControllers()
 {
     //add controllers that are generally needed here.
     registerController(std::make_shared<EngineIoController>());
+    registerController(std::make_shared<SocketIoController>("/sio"));
+    registerController(std::make_shared<SocketIoController>("/socket.io"));
 }
 
 void addSwaggerServerUrl(const std::string &url, const std::string &name)

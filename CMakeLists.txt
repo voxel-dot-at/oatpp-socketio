@@ -39,7 +39,7 @@ include(CMakePackageConfigHelpers)
 
 # Build dir for generated config, export and package files
 set(generated_dir "${CMAKE_CURRENT_BINARY_DIR}/generated")
-include_directories("${CMAKE_CURRENT_BINARY_DIR}/generated")
+include_directories("${CMAKE_CURRENT_BINARY_DIR}/generated/include")
 
 
 ################################################################################
@@ -79,6 +79,8 @@ message (STATUS "version: " ${VERSION} )
 message (STATUS ${PROJECT_NAME}" version: " ${PROJECT_VERSION_FULL} )
 
 # Generate Config file y_config.h
+# set alternative variable instead of the project name containting a -
+set(PROJ_NAME OATPP_SOCKETIO)
 set(config_h_in "${CMAKE_CURRENT_SOURCE_DIR}/cmake/${PROJECT_NAME}_config.h.in")
 set(config_h "${generated_dir}/include/${PROJECT_NAME}/${PROJECT_NAME}_config.h")
 configure_file("${config_h_in}" "${config_h}")

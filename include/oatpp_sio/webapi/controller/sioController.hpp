@@ -30,47 +30,56 @@
 
 #include "oatpp_sio/eio/engineIo.hpp"
 
-
 #include OATPP_CODEGEN_BEGIN(ApiController)  /// <-- Begin Code-Gen
 
 // static bool debugSync = false;
 
-class EngineIoController : public oatpp::web::server::api::ApiController
+class SocketIoController : public oatpp::web::server::api::ApiController
 {
+    std::string prefix;
+
    private:
     OATPP_COMPONENT(std::shared_ptr<oatpp::network::ConnectionHandler>,
                     websocketConnectionHandler, "websocket");
 
    private:
-    typedef EngineIoController __ControllerType;
+    typedef SocketIoController __ControllerType;
 
     std::shared_ptr<oatpp::data::mapping::ObjectMapper> om;
 
+   private:
+    // OATPP_COMPONENT(std::shared_ptr<Lobby>, lobby);
+
    public:
-    EngineIoController(OATPP_COMPONENT(
-        std::shared_ptr<oatpp::web::mime::ContentMappers>, apiContentMappers))
-        : oatpp::web::server::api::ApiController(apiContentMappers)
+    SocketIoController(
+        std::string prefix,
+        OATPP_COMPONENT(std::shared_ptr<oatpp::web::mime::ContentMappers>,
+                        apiContentMappers))
+        : oatpp::web::server::api::ApiController(apiContentMappers),
+          prefix(prefix)
     {
         om = apiContentMappers->getDefaultMapper();
-        OATPP_LOGd("EIO", "EngineIoController: mapper serializing to {}/{}",
+        OATPP_LOGd("SIO", "SocketIoController: PFX {}", this->prefix);
+
+        OATPP_LOGd("SIO", "SocketIoController: mapper serializing to {}/{}",
                    om->getInfo().mimeType, om->getInfo().mimeSubtype);
     }
 
    public:  // ENDPOINTS:
             // GET - connection startup
-    ENDPOINT_INFO(EioGet)
+    ENDPOINT_INFO(SioGet)
     {
-        info->summary = "Engine.IO";
-        info->description = "Engine.IO default endpoint";
+        info->summary = "Socket.IO";
+        info->description = "Socket.IO default endpoint";
         info->addResponse<String>(Status::CODE_200, "text/plain");
-        info->queryParams.add<String>("EIO").description =
+        info->queryParams.add<String>("SIO").description =
             "protocol version (4)";
         info->queryParams.add<String>("transport").description =
             "transport method (polling)";
     }
-    ENDPOINT_ASYNC("GET", "/engine.io/*", EioGet)
+    ENDPOINT_ASYNC("GET", prefix + "/*", SioGet)
     {
-        ENDPOINT_ASYNC_INIT(EioGet);
+        ENDPOINT_ASYNC_INIT(SioGet);
 
         oatpp_sio::eio::EioConnection::Ptr conn;
 
@@ -86,7 +95,7 @@ class EngineIoController : public oatpp::web::server::api::ApiController
                         controller->websocketConnectionHandler);
                 return _return(response);
             } else {
-                OATPP_LOGd("EIO", "EioGet {} WS UPGRADE", sid);
+                OATPP_LOGd("SIO", "SioGet {} WS UPGRADE", sid);
 
                 auto parameters = std::make_shared<
                     oatpp::network::ConnectionHandler::ParameterMap>();
@@ -106,10 +115,10 @@ class EngineIoController : public oatpp::web::server::api::ApiController
         {
             using namespace oatpp_sio::eio;
             auto sid = request->getQueryParameter("sid");
-            OATPP_LOGd("EIO", "EioGet {} handleLp", sid);
+            // OATPP_LOGd("SIO", "SioGet {} handleLp", sid);
 
             if (!sid) {
-                OATPP_LOGd("EIO", "EioGet {} handleLp START", sid);
+                OATPP_LOGd("SIO", "SioGet {} handleLp START", sid);
                 // create a new connection
                 auto response =
                     theEngine->startLpConnection(controller, request);
@@ -130,14 +139,14 @@ class EngineIoController : public oatpp::web::server::api::ApiController
                 return _return(response);
             }
             if (conn->getState() == connOpening) {
-                OATPP_LOGw("EIO", "EioGet {} handleLp IN UPGRADE", sid);
+                OATPP_LOGi("SIO", "SioGet {} handleLp IN UPGRADE", sid);
                 auto response = controller->createResponse(Status::CODE_200,
-                                                           "6" /*eioNoop*/);
+                                                           "6" /*sioNoop*/);
                 return _return(response);
             }
             if (conn->hasLongPoll()) {
                 // another poll request pending. kick.
-                OATPP_LOGw("EIO", "EioGet {} handleLp DUP REQ", sid);
+                OATPP_LOGw("SIO", "SioGet {} handleLp DUP REQ", sid);
                 std::string ssid = sid;
                 conn->injectClose();
                 theEngine->removeConnection(ssid);
@@ -147,7 +156,7 @@ class EngineIoController : public oatpp::web::server::api::ApiController
             } else {
                 conn->setLongPoll(request);
             }
-            return yieldTo(&EioGet::wait4Msgs);
+            return yieldTo(&SioGet::wait4Msgs);
         }
 
         Action wait4Msgs()
@@ -161,31 +170,31 @@ class EngineIoController : public oatpp::web::server::api::ApiController
 
                 conn->clearLongPoll();
 
-                OATPP_LOGd("CTRL", "EioGet {} wait4Msgs GOT [{}]", sid, msg);
+                OATPP_LOGd("CTRL", "SioGet {} wait4Msgs GOT [{}]", sid, msg);
                 auto response =
                     controller->createResponse(Status::CODE_200, msg);
                 response->putHeader("Content-Type", "text/plain");
                 return _return(response);
             }
             if (conn->getState() == connClosed) {
-                OATPP_LOGd("CTRL", "EioGet {} wait4Msgs connClosed", sid);
+                OATPP_LOGd("CTRL", "SioGet {} wait4Msgs connClosed", sid);
                 return _return(
                     controller->createResponse(Status::CODE_400, "closed"));
             }
-            // OATPP_LOGd("CTRL", "EioGet {} wait4Msgs...", sid);
+            // OATPP_LOGd("CTRL", "SioGet {} wait4Msgs...", sid);
             return oatpp::async::Action::createWaitRepeatAction(
                 100 * 1000 + oatpp::Environment::getMicroTickCount());
         }
 
         Action act() override
         {
-            auto eio = request->getQueryParameter("EIO");
+            auto sio = request->getQueryParameter("EIO");
             auto transport = request->getQueryParameter("transport");
             // auto sid = request->getQueryParameter("sid");
-            // OATPP_LOGd("EIO", "EioGet {} GET {} t {}", sid, eio, transport);
+            // OATPP_LOGd("SIO", "SioGet {} GET {} t {}", sid, sio, transport);
 
             // check pre-conditions:
-            if (!eio || eio != "4") {
+            if (!sio || sio != "4") {
                 auto response = controller->createResponse(Status::CODE_400);
                 return _return(response);
             }
@@ -196,16 +205,16 @@ class EngineIoController : public oatpp::web::server::api::ApiController
             }
 
             if (transport == "websocket") {
-                return yieldTo(&EioGet::handleWebSocket);
+                return yieldTo(&SioGet::handleWebSocket);
             } else {
-                return yieldTo(&EioGet::handleLongPoll);
+                return yieldTo(&SioGet::handleLongPoll);
             }
         }
     };
 
-    ENDPOINT_ASYNC("POST", "/engine.io/*", EioPost)
+    ENDPOINT_ASYNC("POST", prefix + "/*", SioPost)
     {
-        ENDPOINT_ASYNC_INIT(EioPost);
+        ENDPOINT_ASYNC_INIT(SioPost);
 
         oatpp_sio::eio::EioConnection::Ptr conn;
 
@@ -229,13 +238,13 @@ class EngineIoController : public oatpp::web::server::api::ApiController
         {
             using namespace oatpp_sio::eio;
 
-            auto eio = request->getQueryParameter("EIO");
+            auto sio = request->getQueryParameter("EIO");
             auto transport = request->getQueryParameter("transport");
             auto sid = request->getQueryParameter("sid");
 
-            OATPP_LOGd("EIO", "EioPost {} POST {} t {}", sid, eio, transport);
+            OATPP_LOGd("SIO", "SioPost {} POST {} t {}", sid, sio, transport);
 
-            if (!eio || eio != "4" || !sid) {
+            if (!sio || sio != "4" || !sid) {
                 return _return(controller->createResponse(Status::CODE_400));
             }
 
@@ -250,7 +259,7 @@ class EngineIoController : public oatpp::web::server::api::ApiController
                                                           "sid not found"));
             }
             if (conn->hasLongPoll()) {
-                OATPP_LOGw("EIO", "EioPost {} DUP REQ", sid);
+                OATPP_LOGw("SIO", "SioPost {} DUP REQ", sid);
                 std::string ssid = sid;
                 // duplicate poll request
                 conn->injectClose();
@@ -259,18 +268,18 @@ class EngineIoController : public oatpp::web::server::api::ApiController
                                                            "duplicate get req");
                 return _return(response);
             }
-            OATPP_LOGd("EIO", "EioPost {} POST ok {} t {} s {}", sid, eio,
+            OATPP_LOGd("SIO", "SioPost {} POST ok {} t {} s {}", sid, sio,
                        transport);
 
             return request->readBodyToStringAsync().callbackTo(
-                &EioPost::withBody);
+                &SioPost::withBody);
         }
     };
 
     // make the test-suite happy (otherwise we report 404)
-    ENDPOINT_ASYNC("PUT", "/engine.io/*", EngineIoPut)
+    ENDPOINT_ASYNC("PUT", prefix + "/*", SioPut)
     {
-        ENDPOINT_ASYNC_INIT(EngineIoPut);
+        ENDPOINT_ASYNC_INIT(SioPut);
 
         Action act() override
         {

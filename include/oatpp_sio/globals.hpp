@@ -35,6 +35,8 @@ class WebApiState
     std::string webRoot = "./web/";
 
     bool enableSwaggerUi = true;
+
+    static std::string softwareVersion();
 };
 
 /** set up the global state object, set options as needed */

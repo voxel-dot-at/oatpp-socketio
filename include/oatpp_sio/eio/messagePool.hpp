@@ -2,17 +2,19 @@
 
 #include <map>
 #include <string>
+#include <memory>
 #include <mutex>
 
 #include "oatpp_sio/eio/connection.hpp"
 #include "oatpp_sio/eio/messageReceiver.hpp"
 
+#include "oatpp_sio/sio/sioConnector.hpp"
+
 namespace oatpp_sio {
+
 namespace eio {
 
-class EioConnection;
-
-class MessagePool
+class MessagePool //: public oatpp_sio::sio::SpaceAdapter
 {
     typedef std::shared_ptr<MessageConsumer> MessageConsumerPtr;
     std::string name;
@@ -21,7 +23,7 @@ class MessagePool
     std::mutex connLock;
 
    public:
-    MessagePool(std::string name = "agora") : name(name) {}
+    MessagePool(const std::string& name = "agora") : name(name) {}
 
     void subscribe(const std::string& id, MessageConsumerPtr conn);
     void unsubscribe(const std::string& id);

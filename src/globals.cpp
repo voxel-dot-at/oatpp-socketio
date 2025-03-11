@@ -18,6 +18,8 @@
 
 #include "oatpp_sio/webapi/webApp.hpp"
 
+#include "oatpp-socketio/oatpp-socketio_config.h"
+
 using namespace std;
 
 namespace oatpp_sio {
@@ -26,6 +28,10 @@ static WebApiState theState;
 
 WebApiState &getGlobalState() { return theState; }
 
+std::string WebApiState::softwareVersion()
+{
+    return OATPP_SOCKETIO_VERSION_FULL;
+}
 
 /** perform controller-specific initialisation before registering to the web api & starting it */
 static void registerOatppControllers(WebApiState &state)

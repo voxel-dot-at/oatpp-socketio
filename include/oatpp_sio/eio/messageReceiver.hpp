@@ -2,29 +2,12 @@
 #include <string>
 #include <memory>
 
+#include "oatpp_sio/message.hpp"
+
 namespace oatpp_sio {
 namespace eio {
 
-class Message
-{
-   public:
-    std::string topic = "";
-    std::string body = "";
-    bool binary = false;
-
-    Message() {}
-    Message(const Message& m) : topic(m.topic), body(m.body), binary(m.binary)
-    {
-    }
-
-    Message& operator=(const Message& m)
-    {
-        topic = m.topic;
-        body = m.body;
-        binary = m.binary;
-        return *this;
-    }
-};
+typedef oatpp_sio::Message Message;
 
 class MessageConsumer
 {
@@ -32,6 +15,8 @@ class MessageConsumer
     virtual void handleMessage(std::shared_ptr<Message> msg) = 0;
 
     virtual void print() const = 0;
+
+    typedef std::shared_ptr<MessageConsumer> Ptr;
 };
 
 class MessageReceiver

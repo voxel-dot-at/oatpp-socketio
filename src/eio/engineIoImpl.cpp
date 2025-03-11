@@ -1,15 +1,17 @@
 #include <iostream>
+#include "oatpp/json/Serializer.hpp"
 
 #include "oatpp_sio/eio/impl/engineIoImpl.hpp"
 
 #include "oatpp_sio/eio/wsConnection.hpp"
 
+#include "oatpp_sio/util.hpp"
+
 using namespace std;
 
-namespace oatpp_sio {
-namespace eio {
+using namespace oatpp_sio::eio;
 
-Engine* theEngine = new EngineImpl();
+Engine* oatpp_sio::eio::theEngine = new EngineImpl();
 
 EngineImpl::EngineImpl() {}
 EngineImpl::~EngineImpl() {}
@@ -24,11 +26,16 @@ EngineImpl::~EngineImpl() {}
  */
 
 std::string EngineImpl::startConnection(
-    const std::shared_ptr<protocol::http::incoming::Request> request)
+    const std::shared_ptr<protocol::http::incoming::Request> request,
+    bool testSioLayer)
 {
     std::string sid = generateSid();
     auto conn = std::make_shared<EioConnection>(*this, sid);
     connections.emplace(sid, conn);
+
+    if (!testSioLayer) {
+        conn->setSio(std::make_shared<oatpp_sio::sio::SioAdapter>(sid), conn);
+    }
 
     auto dto = EioStartup::createShared();
     dto->sid = sid;
@@ -39,7 +46,6 @@ std::string EngineImpl::startConnection(
     dto->maxPayload = maxPayload;
 
     oatpp::String s = om->writeToString(dto);
-
     const std::string& ss = *s;
 
     OATPP_LOGd("EIO", "EngineIoController: startConnection {}", s);
@@ -90,17 +96,22 @@ void EngineImpl::printSockets() const
     }
 }
 
-
 Engine::ResponsePtr EngineImpl::startLpConnection(
     const oatpp::web::server::api::ApiController* controller,
-    const std::shared_ptr<oatpp::web::protocol::http::incoming::Request>
-        req) 
-        
-{    std::string sid = generateSid();
+    const std::shared_ptr<oatpp::web::protocol::http::incoming::Request> req,
+    bool testSioLayer)
+
+{
+    std::string sid = generateSid();
     auto conn = std::make_shared<EioConnection>(*this, sid);
     connections.emplace(sid, conn);
-    conn->setSpace(theSpace);
-    theSpace->subscribe(sid, conn);
+
+    if (testSioLayer) {
+        conn->setSpace(theSpace);
+        theSpace->subscribe(sid, conn);
+    } else {
+        conn->setSio(std::make_shared<oatpp_sio::sio::SioAdapter>(sid), conn);
+    }
 
     auto dto = EioStartup::createShared();
     dto->sid = sid;
@@ -116,51 +127,14 @@ Engine::ResponsePtr EngineImpl::startLpConnection(
 
     std::string msg = pktEncode(eioOpen, ss);
 
-    cout << "MP------------\\" <<endl;
+    cout << "MP------------\\" << endl;
     theSpace->printSubscribers();
-    cout << "MP------------/" <<endl;
+    cout << "MP------------/" << endl;
 
     auto response = controller->createResponse(Status::CODE_200, msg);
     response->putHeader("Content-Type", "text/plain");
     return response;
 }
-
-// Engine::ResponsePtr EngineImpl::handleStartConnection(
-//     oatpp::web::server::api::ApiController* controller,
-//     const std::shared_ptr<oatpp::web::protocol::http::incoming::Request> req)
-// {
-//     std::string sid = generateSid();
-//     auto conn = std::make_shared<EioConnection>(*this, sid);
-//     connections.emplace(sid, conn);
-
-//     auto dto = EioStartup::createShared();
-//     dto->sid = sid;
-//     dto->upgrades->push_back("websocket");
-//     // dto->upgrades->push_back("polling");
-//     dto->pingInterval = pingInterval;
-//     dto->pingTimeout = pingTimeout;
-//     dto->maxPayload = maxPayload;
-
-//     oatpp::String s = om->writeToString(dto);
-
-//     const std::string& ss = *s;
-
-//     OATPP_LOGd("EIO", "EngineIoController: startConnection {}", s);
-
-//     std::string msg = pktEncode(eioOpen, ss);
-
-//     theSpace->subscribe(sid, conn);
-//     conn->setSpace(theSpace);
-
-//     theSpace->printSubscribers();
-//     cout << "MP------------" <<endl;
-//     theSpace->printSubscribers();
-
-
-//     auto response = controller->createResponse(Status::CODE_200, msg);
-//     response->putHeader("Content-Type", "text/plain");
-//     return response;
-// }
 
 Engine::ResponsePtr EngineImpl::handleSocketMsg(
     oatpp::web::server::api::ApiController* controller,
@@ -181,24 +155,15 @@ std::string EngineImpl::pktEncode(EioPacketType pkt, const std::string& msg)
     return packet;
 }
 
-static const char chars[] =
-    "0123456789"
-    "abcdefghijklmnopqrstuvwxyz";
-static int arrayLen = sizeof(chars) - 1;
-
 std::string EngineImpl::generateSid()
 {
-    const int len = 12;
-    std::string sid(len, 'S');
+    std::string sid = generateRandomString(12);
 
-    for (int i = 0; i < len; i++) {
-        sid[i] = chars[rand() % arrayLen];
-    }
-    cout << "EI NEW SID " << sid << endl;
     return "sid_" + sid;
 }
 
-void EngineImpl::registerConnection(std::shared_ptr<WSConnection> wsConn)
+void EngineImpl::registerConnection(std::shared_ptr<WSConnection> wsConn,
+                                    bool testSioLayer)
 {
     OATPP_LOGd("EIO", "EngineIoController: registerConnection");
     // no sid. start new.
@@ -220,8 +185,12 @@ void EngineImpl::registerConnection(std::shared_ptr<WSConnection> wsConn)
 
     OATPP_LOGd("EIO", "EngineIoController: registerConnection {}", s);
 
-    theSpace->subscribe(sid, conn);
-    conn->setSpace(theSpace);
+    if (testSioLayer) {
+        theSpace->subscribe(sid, conn);
+        conn->setSpace(theSpace);
+    } else {
+        conn->setSio(std::make_shared<oatpp_sio::sio::SioAdapter>(sid), conn);
+    }
     wsConn->setMessageReceiver(conn);
 
     std::string msg = pktEncode(eioOpen, ss);
@@ -230,6 +199,3 @@ void EngineImpl::registerConnection(std::shared_ptr<WSConnection> wsConn)
 
     conn->upgrade(wsConn, true);
 }
-
-}  // namespace eio
-}  // namespace oatpp_sio

@@ -3,10 +3,16 @@
 
 add_library(oatpp-socketio SHARED
     globals.cpp
+    util.cpp
     eio/engineIoImpl.cpp
     eio/connection.cpp
     eio/messagePool.cpp
     eio/wsConnection.cpp
+    sio/eioAdapter.cpp
+    sio/namespace.cpp
+    sio/namespaces.cpp
+    sio/sioConnector.cpp
+    sio/sioServer.cpp
     webapi/swaggerComponent.cpp
     webapi/webApi.cpp
     )

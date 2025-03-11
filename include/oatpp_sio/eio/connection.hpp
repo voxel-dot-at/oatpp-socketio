@@ -14,12 +14,18 @@
 
 #include "oatpp_sio/eio/engineIo.hpp"
 #include "oatpp_sio/eio/messageReceiver.hpp"
-#include "oatpp_sio/eio/messagePool.hpp"
+
+#include "oatpp_sio/sio/sioConnector.hpp"
 
 class WSConnection;
 typedef std::shared_ptr<WSConnection> WsConnPtr;
 
 namespace oatpp_sio {
+
+namespace sio {
+class SioAdapter;
+}
+
 namespace eio {
 
 typedef enum
@@ -58,7 +64,7 @@ class EioConnection : public MessageReceiver, public MessageConsumer
     typedef std::shared_ptr<Message> MessagePtr;
     typedef oatpp::web::protocol::http::incoming::Request Request;
     typedef std::shared_ptr<Request> RequestPtr;
-
+    typedef std::shared_ptr<oatpp_sio::sio::SioAdapter> SioAdapterPtr;
     std::string sid;
     std::atomic<ConnState> state;
     Engine& engine;
@@ -67,6 +73,7 @@ class EioConnection : public MessageReceiver, public MessageConsumer
 
     WsConnPtr wsConn;
     PoolPtr space;
+    SioAdapterPtr sioFunnel;
 
     int pongCount = 0;
 
@@ -82,6 +89,9 @@ class EioConnection : public MessageReceiver, public MessageConsumer
     oatpp::async::ConditionVariable lpSema;
 
     std::vector<std::string> msgs;  //< msg queue, already type-encoded!
+
+   public:  // convenience typedefs
+    typedef std::shared_ptr<EioConnection> Ptr;
 
    public:
     EioConnection(Engine& engine, std::string sid);
@@ -101,6 +111,10 @@ class EioConnection : public MessageReceiver, public MessageConsumer
     void wsHasClosed();
 
     void setSpace(PoolPtr deep) { space = deep; }
+
+    void setSio(SioAdapterPtr adapter, Ptr self);
+
+    SioAdapterPtr getSio() const { return sioFunnel; }
 
     WsConnPtr getWsConn() const { return wsConn; }
 
@@ -122,8 +136,6 @@ class EioConnection : public MessageReceiver, public MessageConsumer
 
     // from our space
     virtual void handleMessage(std::shared_ptr<Message> msg);
-
-    typedef std::shared_ptr<EioConnection> Ptr;
 
     std::string pktEncode(EioPacketType pkt, const std::string& msg);
 

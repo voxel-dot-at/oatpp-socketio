@@ -26,28 +26,36 @@ class Engine
     typedef oatpp::web::server::api::ApiController ApiController;
     typedef oatpp::web::protocol::http::incoming::Request Request;
     typedef std::shared_ptr<ApiController::OutgoingResponse> ResponsePtr;
-
-    std::shared_ptr<MessagePool> theSpace;
+    typedef std::shared_ptr<oatpp_sio::eio::MessagePool> PoolPtr;
+    
+    std::shared_ptr<oatpp_sio::eio::MessagePool> theSpace;
 
    public:
-    unsigned int pingInterval = 300;
-    unsigned int pingTimeout = 200;
+    unsigned int pingInterval = 300*1000;
+    unsigned int pingTimeout = 200*1000;
     unsigned int maxPayload = 1e6;
 
     // todo: list of known connections here?
+
+   public:  // convenience typedefs
+    // typedef std::shared_ptr<oatpp_sio::eio::MessagePool> PoolPtr;
 
    public:
     Engine() : theSpace(std::make_shared<MessagePool>()) {}
     virtual ~Engine() {}
 
-    /** start a long-polling connection - assingns a sid and registers a connection onject */
+    /** start a long-polling connection - assingns a sid and registers a connection onject.
+     * @param controller
+     * @param req
+     * @param testSioLayer - use testing top-level layer or socket.io connector (the standard case)
+     */
     virtual ResponsePtr startLpConnection(
         const oatpp::web::server::api::ApiController* controller,
         const std::shared_ptr<oatpp::web::protocol::http::incoming::Request>
-            req) = 0;
+            req, bool testSioLayer = false) = 0;
 
     // websocket
-    virtual std::string startConnection(const std::shared_ptr<Request> req) = 0;
+    virtual std::string startConnection(const std::shared_ptr<Request> req, bool testSioLayer = false) = 0;
 
     virtual void removeConnection(std::string& sid) = 0;
 
@@ -56,7 +64,9 @@ class Engine
     virtual std::shared_ptr<WSConnection> getWsConn(
         const std::string& sid) const = 0;
 
-    std::shared_ptr<MessagePool> getSpace() const { return theSpace; }
+    void setSpace(PoolPtr spc) { theSpace = spc; }
+
+    PoolPtr getSpace() const { return theSpace; }
 };
 
 extern Engine* theEngine;

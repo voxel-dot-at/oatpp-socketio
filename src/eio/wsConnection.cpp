@@ -11,20 +11,23 @@
 #include <iostream>
 using namespace std;
 
+static const bool dbg = true;
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // WSListener
 
+// n.b. that the websocket-layer ping/pong protocol is not used; engine.io/sio uses it's own messages.
 oatpp::async::CoroutineStarter WSConnection::onPing(
     const std::shared_ptr<AsyncWebSocket>& socket, const oatpp::String& message)
 {
-    OATPP_LOGd(TAG, "onPing");
+    if (dbg) OATPP_LOGd(TAG, "onPing");
     return nullptr;
 }
 
 oatpp::async::CoroutineStarter WSConnection::onPong(
     const std::shared_ptr<AsyncWebSocket>& socket, const oatpp::String& message)
 {
-    OATPP_LOGd(TAG, "onPong");
+    if (dbg) OATPP_LOGd(TAG, "onPong");
     return nullptr;  // do nothing
 }
 
@@ -32,7 +35,7 @@ oatpp::async::CoroutineStarter WSConnection::onClose(
     const std::shared_ptr<AsyncWebSocket>& socket, v_uint16 code,
     const oatpp::String& message)
 {
-    OATPP_LOGd(TAG, "onClose code={} {}", code, message);
+    if (dbg) OATPP_LOGd(TAG, "onClose code={} {}", code, message);
 
     return nullptr;  // do nothing
 }
@@ -129,7 +132,7 @@ void WSConnection::sendMessageAsync(const String& message, bool isBinary)
 
         Action act() override
         {
-            OATPP_LOGi(TAG, "sendmsg message='{}' {} {}", m_message,
+            if (dbg) OATPP_LOGd(TAG, "sendmsg message='{}' {} {}", m_message,
                        (*m_message).size(), m_binary);
 
             if (m_binary) {
