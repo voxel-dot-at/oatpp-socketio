@@ -29,6 +29,16 @@ void Space::removeListener(const std::string& id)
     }
 }
 
+SpaceListener::Ptr Space::getListener(const std::string& id) const
+{
+    auto iter = subscriptions.find(id);
+    if (iter != subscriptions.end()) {
+        return iter->second;
+    } else {
+        return nullptr;
+    }
+}
+
 void Space::publish(std::shared_ptr<Space> space, SpaceListener::Ptr sender,
                     std::shared_ptr<oatpp_sio::Message> msg)
 {

@@ -37,6 +37,9 @@ class SpaceListener
 
     virtual void onSioMessage(std::shared_ptr<Space> space, Ptr sender,
                               oatpp_sio::Message::Ptr msg) = 0;
+
+    virtual void subscribed(std::shared_ptr<Space> space) {}
+    virtual void left(std::shared_ptr<Space> space) {}
 };
 
 class Space
@@ -68,6 +71,8 @@ class Space
     void addListener(SpaceListener::Ptr listener);
 
     void removeListener(const std::string& id);
+
+    SpaceListener::Ptr getListener(const std::string& id) const;
 
     void publish(std::shared_ptr<Space> space, SpaceListener::Ptr sender,
                  std::shared_ptr<oatpp_sio::Message> msg);

@@ -54,6 +54,10 @@ class SioAdapter : public SpaceListener
     virtual void onSioMessage(std::shared_ptr<Space> space, Ptr sender,
                               oatpp_sio::Message::Ptr msg) override;
 
+    virtual void subscribed(std::shared_ptr<Space> space) override;
+
+    virtual void left(std::shared_ptr<Space> space) override;
+
     void shutdown();
 
    private:

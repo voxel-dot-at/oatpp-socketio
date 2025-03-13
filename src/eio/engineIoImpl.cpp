@@ -71,6 +71,20 @@ EioConnection::Ptr EngineImpl::getConnection(const std::string& sid)
     return nullptr;
 }
 
+EioConnection::Ptr EngineImpl::getConnection(const WebsocketPtr& socket)
+{
+    auto iter = connections.begin();
+    while (iter != connections.end()) {
+        if (iter->second->getWsConn()->theSocket() == socket) {
+            return iter->second;
+        }
+        iter++;
+    }
+
+    OATPP_LOGw("EIO", "getConnection could not find matching websocket!");
+    return nullptr;
+}
+
 std::shared_ptr<WSConnection> EngineImpl::getWsConn(
     const std::string& sid) const
 {
@@ -106,7 +120,7 @@ Engine::ResponsePtr EngineImpl::startLpConnection(
     auto conn = std::make_shared<EioConnection>(*this, sid);
     connections.emplace(sid, conn);
 
-    if (testSioLayer) {
+    if (testSioLayer) { // @TODO remove test code
         conn->setSpace(theSpace);
         theSpace->subscribe(sid, conn);
     } else {
@@ -126,10 +140,6 @@ Engine::ResponsePtr EngineImpl::startLpConnection(
     OATPP_LOGd("EIO", "EngineIoController: startConnection {}", s);
 
     std::string msg = pktEncode(eioOpen, ss);
-
-    cout << "MP------------\\" << endl;
-    theSpace->printSubscribers();
-    cout << "MP------------/" << endl;
 
     auto response = controller->createResponse(Status::CODE_200, msg);
     response->putHeader("Content-Type", "text/plain");

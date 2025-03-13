@@ -55,6 +55,8 @@ class EngineImpl : public Engine
 
     virtual EioConnection::Ptr getConnection(const std::string& sid) override;
 
+    virtual EioConnection::Ptr getConnection(const WebsocketPtr& socket) override;
+
     virtual std::shared_ptr<WSConnection> getWsConn(
         const std::string& sid) const override;
 

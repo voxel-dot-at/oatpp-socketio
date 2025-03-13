@@ -27,19 +27,19 @@ class Engine
     typedef oatpp::web::protocol::http::incoming::Request Request;
     typedef std::shared_ptr<ApiController::OutgoingResponse> ResponsePtr;
     typedef std::shared_ptr<oatpp_sio::eio::MessagePool> PoolPtr;
-    
+    typedef std::shared_ptr<oatpp::websocket::AsyncWebSocket> WebsocketPtr;
+
     std::shared_ptr<oatpp_sio::eio::MessagePool> theSpace;
 
    public:
-    unsigned int pingInterval = 300*1000;
-    unsigned int pingTimeout = 200*1000;
+    unsigned int pingInterval = 300 * 1000;
+    unsigned int pingTimeout = 200 * 1000;
     unsigned int maxPayload = 1e6;
 
     // todo: list of known connections here?
 
    public:  // convenience typedefs
-    // typedef std::shared_ptr<oatpp_sio::eio::MessagePool> PoolPtr;
-
+            // typedef std::shared_ptr<oatpp_sio::eio::MessagePool> PoolPtr;
    public:
     Engine() : theSpace(std::make_shared<MessagePool>()) {}
     virtual ~Engine() {}
@@ -52,14 +52,18 @@ class Engine
     virtual ResponsePtr startLpConnection(
         const oatpp::web::server::api::ApiController* controller,
         const std::shared_ptr<oatpp::web::protocol::http::incoming::Request>
-            req, bool testSioLayer = false) = 0;
+            req,
+        bool testSioLayer = false) = 0;
 
     // websocket
-    virtual std::string startConnection(const std::shared_ptr<Request> req, bool testSioLayer = false) = 0;
+    virtual std::string startConnection(const std::shared_ptr<Request> req,
+                                        bool testSioLayer = false) = 0;
 
     virtual void removeConnection(std::string& sid) = 0;
 
     virtual EioConnectionPtr getConnection(const std::string& sid) = 0;
+
+    virtual EioConnectionPtr getConnection(const WebsocketPtr& socket) = 0;
 
     virtual std::shared_ptr<WSConnection> getWsConn(
         const std::string& sid) const = 0;

@@ -214,4 +214,12 @@ void WSInstanceListener::onBeforeDestroy_NonBlocking(
 {
     SOCKETS--;
     OATPP_LOGd(TAG, "Connection closed. Connection count={}", SOCKETS.load());
+
+    auto conn = theEngine->getConnection(socket);
+    if (  conn.get()) {
+        conn->shutdownConnection();
+    } else {
+        OATPP_LOGi(TAG, "could not find upper layer connections. ignoring.");
+
+    }
 }

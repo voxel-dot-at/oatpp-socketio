@@ -47,11 +47,26 @@ bool SioServer::connectToSpace(const std::string& spaceName,
 {
     auto iter = mySpaces.find(spaceName);
     if (iter == mySpaces.end()) {
-            OATPP_LOGd("SioServer", "SioServer could not find {} ", spaceName);
-            return false;
+        OATPP_LOGd("SioServer", "SioServer could not find {} ", spaceName);
+        return false;
     }
     sioId = generateRandomString(6);
     iter->second->addListener(listener);
+    listener->subscribed(iter->second);
+    return true;
+}
 
+bool SioServer::leaveSpace(const std::string& spaceName, std::string& sioId)
+{
+    auto iter = mySpaces.find(spaceName);
+    if (iter == mySpaces.end()) {
+        OATPP_LOGd("SioServer", "SioServer could not find {} ", spaceName);
+        return false;
+    }
+    auto listener = iter->second->getListener(sioId);
+    if (listener.get()) {
+        iter->second->removeListener(sioId);
+        listener->left(iter->second);
+    }
     return true;
 }

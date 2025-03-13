@@ -65,6 +65,9 @@ void EioConnection::handleMessage(std::shared_ptr<Message> msg)
         if (space.get()) {
             space->unsubscribe(sid);
         }
+        if (sioFunnel.get()) {
+            sioFunnel->shutdown();
+        }
         return;
     }
     if (this->wsConn.get()) {

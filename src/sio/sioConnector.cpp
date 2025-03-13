@@ -8,7 +8,8 @@
 
 using namespace oatpp_sio::sio;
 
-void SioAdapter::shutdown() {
+void SioAdapter::shutdown()
+{
     auto iter = mySpaces.begin();
     while (iter != mySpaces.end()) {
         iter->second->removeListener(id());
@@ -16,6 +17,18 @@ void SioAdapter::shutdown() {
     }
     mySpaces.clear();
 }
+
+void SioAdapter::subscribed(std::shared_ptr<Space> space) {
+    mySpaces.insert({space->id(), space});
+}
+
+void SioAdapter::left(std::shared_ptr<Space> space) {
+    auto iter = mySpaces.find(space->id());
+    if (iter != mySpaces.end()) {
+        mySpaces.erase(iter);
+    }
+}
+
 
 // low-level ->up
 void SioAdapter::onEioMessage(oatpp_sio::Message::Ptr msg)
@@ -35,6 +48,7 @@ void SioAdapter::onEioMessage(oatpp_sio::Message::Ptr msg)
     }
 }
 
+// from socketio --> send down:
 void SioAdapter::onSioMessage(std::shared_ptr<Space> space, Ptr sender,
                               oatpp_sio::Message::Ptr msg)
 {
@@ -43,6 +57,8 @@ void SioAdapter::onSioMessage(std::shared_ptr<Space> space, Ptr sender,
         OATPP_LOGi("SADAP", "MSG TO SELF {} : {}", sender->id(), id());
         return;
     }
+    // @TODO: encode packets here
+
     eioConn->handleMessage(msg);
 }
 
@@ -71,7 +87,7 @@ void SioAdapter::onSioEvent(const std::string& data)
             start = i;
             break;
         }
-        if (data[i] == ',') { // found non-standard namespace
+        if (data[i] == ',') {  // found non-standard namespace
             spc = data.substr(0, i - 1);
             break;
         }
