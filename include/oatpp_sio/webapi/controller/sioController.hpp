@@ -38,7 +38,7 @@ class SocketIoController : public oatpp::web::server::api::ApiController
 {
     std::string prefix;
 
-   private:
+    private:
     OATPP_COMPONENT(std::shared_ptr<oatpp::network::ConnectionHandler>,
                     websocketConnectionHandler, "websocket");
 
@@ -140,9 +140,7 @@ class SocketIoController : public oatpp::web::server::api::ApiController
             }
             if (conn->getState() == connOpening) {
                 OATPP_LOGi("SIO", "SioGet {} handleLp IN UPGRADE", sid);
-                auto response = controller->createResponse(Status::CODE_200,
-                                                           "6" /*sioNoop*/);
-                return _return(response);
+                return yieldTo(&SioGet::wait4Msgs);
             }
             if (conn->hasLongPoll()) {
                 // another poll request pending. kick.
@@ -181,7 +179,7 @@ class SocketIoController : public oatpp::web::server::api::ApiController
                 return _return(
                     controller->createResponse(Status::CODE_400, "closed"));
             }
-            // OATPP_LOGd("CTRL", "SioGet {} wait4Msgs...", sid);
+            OATPP_LOGd("CTRL", "SioGet {} wait4Msgs...", sid);
             return oatpp::async::Action::createWaitRepeatAction(
                 100 * 1000 + oatpp::Environment::getMicroTickCount());
         }
@@ -190,8 +188,8 @@ class SocketIoController : public oatpp::web::server::api::ApiController
         {
             auto sio = request->getQueryParameter("EIO");
             auto transport = request->getQueryParameter("transport");
-            // auto sid = request->getQueryParameter("sid");
-            // OATPP_LOGd("SIO", "SioGet {} GET {} t {}", sid, sio, transport);
+            auto sid = request->getQueryParameter("sid");
+            OATPP_LOGd("SIO", "SioGet {} ************** GET {} t {}", sid, sio, transport);
 
             // check pre-conditions:
             if (!sio || sio != "4") {
@@ -204,6 +202,7 @@ class SocketIoController : public oatpp::web::server::api::ApiController
                 return _return(controller->createResponse(Status::CODE_400));
             }
 
+            OATPP_LOGd("SIO", "SioGet {} ************** GET 2 {} t {}", sid, sio, transport);
             if (transport == "websocket") {
                 return yieldTo(&SioGet::handleWebSocket);
             } else {
