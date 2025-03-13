@@ -13,6 +13,19 @@ class Runner {
         sock.on("connect", () => {
             console.log("SOCK CONNECTED", sock.id); // "G5p5..."
 
+	    sock.on("message", (data) => {
+	    	    console.log("MSG", JSON.stringify(data))
+	    })
+	    sock.on("dummy", (data) => {
+	    	    console.log("DUMMY", JSON.stringify(data))
+	    })
+	    sock.on("cam", (data) => {
+	    	    console.log("CAM", JSON.stringify(data))
+	    })
+	    sock.on("fic", (data) => {
+	    	    console.log("FRAMEINFO", JSON.stringify(data))
+	    })
+	    
             setInterval(()=>{
                 // sock.emit('foo', {d: Date.now()})
                 sock.send( JSON.stringify({d: Date.now()}))

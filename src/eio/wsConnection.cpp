@@ -132,8 +132,9 @@ void WSConnection::sendMessageAsync(const String& message, bool isBinary)
 
         Action act() override
         {
-            if (dbg) OATPP_LOGd(TAG, "sendmsg message='{}' {} {}", m_message,
-                       (*m_message).size(), m_binary);
+            if (dbg)
+                OATPP_LOGd(TAG, "sendmsg message='{}' {} {}", m_message,
+                           (*m_message).size(), m_binary);
 
             if (m_binary) {
                 return oatpp::async::synchronize(
@@ -173,17 +174,15 @@ void WSInstanceListener::onAfterCreate_NonBlocking(
         }
     }
 
-    OATPP_LOGd(TAG, "afterCrea Connection count={} sid? {}",
-               SOCKETS.load(), sid);
-
+    OATPP_LOGd(TAG, "afterCreate Connection sid? {}", sid);
 
     EngineImpl* ei = dynamic_cast<EngineImpl*>(theEngine);
 
-    cout << "EI SOCKS -----------" <<endl;
-    ei->printSockets();
-    cout << "MP SOCKS -----------" <<endl;
-    ei->getSpace()->printSubscribers();
-    cout << "__ SOCKS -----------" <<endl;
+    // cout << "EI SOCKS -----------" <<endl;
+    // ei->printSockets();
+    // cout << "MP SOCKS -----------" <<endl;
+    // ei->getSpace()->printSubscribers();
+    // cout << "__ SOCKS -----------" <<endl;
 
     /* In this particular case we create one WSConnection per each connection */
     /* Which may be redundant in many cases */
@@ -193,6 +192,11 @@ void WSInstanceListener::onAfterCreate_NonBlocking(
     if (sid) {
         // known -> upgrade
         auto eiConn = ei->getConnection(sid);
+        if (!eiConn.get()) {
+            OATPP_LOGw(TAG, "NO Engine.io connection found for {} - ignoring!",
+                       sid);
+            return;
+        }
         if (eiConn->hasWebsocket()) {
             // this is a duplicate connect request - kick it.
             wsConn->closeSocketAsync();
@@ -200,6 +204,7 @@ void WSInstanceListener::onAfterCreate_NonBlocking(
         }
         eiConn->upgrade(wsConn);
     } else {
+        OATPP_LOGi(TAG, "registerConnection NO sid! {}", sid);
         ei->registerConnection(wsConn);
     }
 }

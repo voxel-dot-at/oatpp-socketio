@@ -58,7 +58,6 @@ void SioAdapter::onSioEvent(const std::string& data)
     int start = -1;
     int arrStart = -1;
     int objStart = -1;
-    int spcStop = -1;
     std::string spc = "/";
     // find the start of things...
     for (unsigned int i = 0; i < data.size(); i++) {
@@ -72,8 +71,7 @@ void SioAdapter::onSioEvent(const std::string& data)
             start = i;
             break;
         }
-        if (data[i] == ',') {
-            spcStop = i;
+        if (data[i] == ',') { // found non-standard namespace
             spc = data.substr(0, i - 1);
             break;
         }

@@ -12,7 +12,7 @@
 using namespace oatpp_sio::eio;
 using namespace std;
 
-static const bool dbg = false;
+static const bool dbg = true;
 
 static const char SEPARATOR = '\x1e';  // ASCII RS
 

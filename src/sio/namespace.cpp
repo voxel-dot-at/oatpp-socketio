@@ -12,11 +12,13 @@ static const bool dbg = false;
 
 void Space::addListener(SpaceListener::Ptr listener)
 {
+    oatpp::async::LockGuard guard(&lock);
     subscriptions.insert({listener->id(), listener});
 }
 
 void Space::removeListener(const std::string& id)
 {
+    oatpp::async::LockGuard guard(&lock);
     auto iter = subscriptions.begin();
     while (iter != subscriptions.end()) {
         if (iter->second->id() == id) {
@@ -30,6 +32,7 @@ void Space::removeListener(const std::string& id)
 void Space::publish(std::shared_ptr<Space> space, SpaceListener::Ptr sender,
                     std::shared_ptr<oatpp_sio::Message> msg)
 {
+    oatpp::async::LockGuard guard(&lock);
     auto iter = subscriptions.begin();
     while (iter != subscriptions.end()) {
         iter->second->onSioMessage(space, sender, msg);
@@ -41,6 +44,8 @@ void Space::publishAsync(std::shared_ptr<Space> space,
                          SpaceListener::Ptr sender,
                          std::shared_ptr<oatpp_sio::Message> msg)
 {
+    oatpp::async::LockGuard guard(&lock);
+
     class PublishCoRo : public oatpp::async::Coroutine<PublishCoRo>
     {
        private:

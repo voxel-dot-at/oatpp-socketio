@@ -131,7 +131,7 @@ class EngineIoController : public oatpp::web::server::api::ApiController
             }
             if (conn->getState() == connOpening) {
                 OATPP_LOGw("EIO", "EioGet {} handleLp IN UPGRADE", sid);
-                return yieldTo(&SioGet::wait4Msgs);
+                return yieldTo(&EioGet::wait4Msgs);
             }
             if (conn->hasLongPoll()) {
                 // another poll request pending. kick.

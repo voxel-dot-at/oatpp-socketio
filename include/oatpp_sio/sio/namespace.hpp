@@ -47,9 +47,9 @@ class Space
     Space& operator=(const Space&) = delete;
 
     std::unordered_map<std::string, SpaceListener::Ptr> subscriptions;
-
+    // lock for manipulations of the subscriptions map
     oatpp::async::Lock lock;
-    oatpp::async::LockGuard guard;
+
     OATPP_COMPONENT(std::shared_ptr<oatpp::async::Executor>, async, "ws");
 
    public:
