@@ -8,6 +8,15 @@
 
 using namespace oatpp_sio::sio;
 
+void SioAdapter::shutdown() {
+    auto iter = mySpaces.begin();
+    while (iter != mySpaces.end()) {
+        iter->second->removeListener(id());
+        iter++;
+    }
+    mySpaces.clear();
+}
+
 // low-level ->up
 void SioAdapter::onEioMessage(oatpp_sio::Message::Ptr msg)
 {
@@ -26,7 +35,16 @@ void SioAdapter::onEioMessage(oatpp_sio::Message::Ptr msg)
     }
 }
 
-void SioAdapter::onSioMessage(oatpp_sio::Message::Ptr msg) {}
+void SioAdapter::onSioMessage(std::shared_ptr<Space> space, Ptr sender,
+                              oatpp_sio::Message::Ptr msg)
+{
+    OATPP_LOGi("SADAP", "INCOMING SIo Message {} : {}", space->id(), msg->body);
+    if (sender->id() == id()) {
+        OATPP_LOGi("SADAP", "MSG TO SELF {} : {}", sender->id(), id());
+        return;
+    }
+    eioConn->handleMessage(msg);
+}
 
 static auto json = std::make_shared<oatpp::json::ObjectMapper>();
 
@@ -40,6 +58,9 @@ void SioAdapter::onSioEvent(const std::string& data)
     int start = -1;
     int arrStart = -1;
     int objStart = -1;
+    int spcStop = -1;
+    std::string spc = "/";
+    // find the start of things...
     for (unsigned int i = 0; i < data.size(); i++) {
         if (data[i] == '[') {
             arrStart = i;
@@ -51,11 +72,16 @@ void SioAdapter::onSioEvent(const std::string& data)
             start = i;
             break;
         }
+        if (data[i] == ',') {
+            spcStop = i;
+            spc = data.substr(0, i - 1);
+            break;
+        }
     }
 
     if (start > 0) {
-        ackId = data.substr(0, start );
-        OATPP_LOGi("SADAP", "onSioEvent ack {} |{}|", start, ackId);
+        ackId = data.substr(0, start);
+        OATPP_LOGi("SADAP", "onSioEvent ack {} |{}| spc {}", start, ackId, spc);
     }
     std::string payload = data.substr(start);
     if (arrStart > 0) {
@@ -65,10 +91,19 @@ void SioAdapter::onSioEvent(const std::string& data)
     if (objStart > 0) {
         OATPP_LOGi("SADAP", "onSioEvent PUBL |{}|", payload);
     }
+    // publish to space
+    {
+        auto self = eioConn->getSio();
+        auto msg = std::make_shared<oatpp_sio::Message>();
+        msg->body = payload;
+        auto space = SioServer::serverInstance().getSpace(spc);
+        space->publish(space, self, msg);
+    }
+    // ack message...:
     bool success = start > 0;
     if (success) {
         std::string encoded;
-        encoded = "3" + ackId;
+        encoded = "3" + ackId + "[]";
 
         auto msg = std::make_shared<oatpp_sio::Message>();
         msg->body = encoded;
@@ -106,12 +141,11 @@ void SioAdapter::onSioConnect(const std::string& connTo)
         msg->body = encoded;
         this->eioConn->handleMessage(msg);
     } else {
-        std::string encoded; // -> disconnect
-        encoded = "1";//{\"sid\":\"" + sioId + "\"}";
+        std::string encoded;  // -> disconnect
+        encoded = "1";        //{\"sid\":\"" + sioId + "\"}";
 
         auto msg = std::make_shared<oatpp_sio::Message>();
         msg->body = encoded;
         this->eioConn->handleMessage(msg);
-
     }
 }

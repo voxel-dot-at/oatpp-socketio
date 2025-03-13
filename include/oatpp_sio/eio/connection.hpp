@@ -77,8 +77,7 @@ class EioConnection : public MessageReceiver, public MessageConsumer
 
     int pongCount = 0;
 
-    OATPP_COMPONENT(std::shared_ptr<oatpp::async::Executor>, asyncExecutor,
-                    "ws");
+    OATPP_COMPONENT(std::shared_ptr<oatpp::async::Executor>, async, "ws");
 
     ////// long-polling section:
 

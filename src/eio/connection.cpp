@@ -153,8 +153,10 @@ void EioConnection::handleEioMessage(const std::string& body, bool isBinary)
             // reset timer
             break;
         case eiouUgrade:
-            if (dbg) ;
-            OATPP_LOGd("EICO", "{} handleEioMessage upgrade #MSGS {}", sid, msgs.size() );
+            if (dbg)
+                ;
+            OATPP_LOGd("EICO", "{} handleEioMessage upgrade #MSGS {}", sid,
+                       msgs.size());
             connType = websocket;
             state = connOpen;
             break;
@@ -222,6 +224,7 @@ void EioConnection::shutdownConnection()
         space.reset();
     }
     if (sioFunnel.get()) {
+        sioFunnel->shutdown();
         sioFunnel.reset();
     }
     msgs.clear();
@@ -344,6 +347,6 @@ void EioConnection::scheduleDelayedPingMsg()
         }
     };
     // MAYBE refactor to getConnection() inside the timer, need to check existence...
-    asyncExecutor->execute<SendDelayedPingCoroutine>(sid, engine.pingInterval,
-                                                     engine.pingTimeout);
+    async->execute<SendDelayedPingCoroutine>(sid, engine.pingInterval,
+                                             engine.pingTimeout);
 }

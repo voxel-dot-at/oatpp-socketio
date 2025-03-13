@@ -51,7 +51,10 @@ class SioAdapter : public SpaceListener
     virtual void onEioMessage(oatpp_sio::Message::Ptr msg);
 
     // from socketio
-    virtual void onSioMessage(oatpp_sio::Message::Ptr msg) override;
+    virtual void onSioMessage(std::shared_ptr<Space> space, Ptr sender,
+                              oatpp_sio::Message::Ptr msg) override;
+
+    void shutdown();
 
    private:
     void onSioConnect(const std::string& data);

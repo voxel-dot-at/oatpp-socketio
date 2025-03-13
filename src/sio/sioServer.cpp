@@ -21,6 +21,15 @@ SioServer& SioServer::serverInstance()
     return *universe;
 }
 
+Space::Ptr SioServer::getSpace(const std::string& id) const
+{
+    auto iter = mySpaces.find(id);
+    if (iter == mySpaces.end()) {
+        throw std::runtime_error("space does not exist!");
+    }
+    return iter->second;
+}
+
 Space::Ptr SioServer::newSpace(const std::string& id)
 {
     auto iter = mySpaces.find(id);
@@ -29,6 +38,7 @@ Space::Ptr SioServer::newSpace(const std::string& id)
     }
     auto spc = std::make_shared<Space>("id");
     mySpaces.insert({id, spc});
+    return spc;
 }
 
 bool SioServer::connectToSpace(const std::string& spaceName,

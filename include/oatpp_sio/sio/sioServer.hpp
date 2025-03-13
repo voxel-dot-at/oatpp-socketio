@@ -25,6 +25,8 @@ class SioServer
 
     Space::Ptr newSpace(const std::string& id);
 
+    Space::Ptr getSpace(const std::string& id) const;
+
     // void dropSpace(const std::string& id);
 
     /**
