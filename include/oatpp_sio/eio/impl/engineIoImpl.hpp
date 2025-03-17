@@ -28,6 +28,7 @@ class EngineImpl : public Engine
     std::shared_ptr<oatpp::json::ObjectMapper> om =
         std::make_shared<oatpp::json::ObjectMapper>();
 
+    oatpp::async::Lock lock;
     std::map<std::string, EioConnection::Ptr> connections;
 
    public:
@@ -37,17 +38,11 @@ class EngineImpl : public Engine
     virtual ResponsePtr startLpConnection(
         const oatpp::web::server::api::ApiController* controller,
         const std::shared_ptr<oatpp::web::protocol::http::incoming::Request>
-            req,
-        bool testSioLayer = false) override;
-
-    virtual std::string startConnection(
-        const std::shared_ptr<oatpp::web::protocol::http::incoming::Request>
-            req,
-        bool testSioLayer = false) override;
+            req) override;
 
     /** start websocket-based connection */
-    virtual void registerConnection(std::shared_ptr<WSConnection> wsConn,
-                                    bool testSioLayer = false);
+    virtual void registerConnection(
+        std::shared_ptr<WSConnection> wsConn) override;
 
     virtual void removeConnection(std::string& sid) override;
 
@@ -55,10 +50,8 @@ class EngineImpl : public Engine
 
     virtual EioConnection::Ptr getConnection(const std::string& sid) override;
 
-    virtual EioConnection::Ptr getConnection(const WebsocketPtr& socket) override;
-
-    virtual std::shared_ptr<WSConnection> getWsConn(
-        const std::string& sid) const override;
+    virtual EioConnection::Ptr getConnection(
+        const WebsocketPtr& socket) override;
 
     std::string generateSid();
 
@@ -67,14 +60,6 @@ class EngineImpl : public Engine
 
    private:
     std::string pktEncode(EioPacketType pkt, const std::string& msg);
-
-    // virtual ResponsePtr handleStartConnection(
-    //     oatpp::web::server::api::ApiController* controller,
-    //     const std::shared_ptr<Request> req);
-
-    virtual ResponsePtr handleSocketMsg(
-        oatpp::web::server::api::ApiController* controller,
-        const std::shared_ptr<Request> req, const std::string& sid);
 
     // void pingAsync(EioConnection::Ptr conn);
 };

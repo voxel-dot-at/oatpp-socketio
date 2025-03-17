@@ -71,7 +71,10 @@ int main(int argc, const char* argv[])
     // DONE INIT WEB FRONTEND
 
     // INIT engine.io
-    // theEngine
+
+    // // configure the engine.io stack for the test suite:
+    oatpp_sio::eio::theEngine->setConfig(300, 200, 1e6);
+
     // DONE INIT 
 
 

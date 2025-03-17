@@ -81,11 +81,13 @@ class SocketIoController : public oatpp::web::server::api::ApiController
     {
         ENDPOINT_ASYNC_INIT(SioGet);
 
-        const bool dbg = false;
+        const bool dbg = true;
         oatpp_sio::eio::EioConnection::Ptr conn;
 
         Action handleWebSocket()
         {
+            using namespace oatpp_sio::eio;
+
             auto sid = request->getQueryParameter("sid");
             // immediately start a ws connection, sending the open packet over ws
             if (!sid) {
@@ -96,6 +98,20 @@ class SocketIoController : public oatpp::web::server::api::ApiController
                         controller->websocketConnectionHandler);
                 return _return(response);
             } else {
+                conn = theEngine->getConnection(sid);
+                if (!conn) {
+                    // stale connection id
+                    auto response =
+                        controller->createResponse(Status::CODE_400, "no sid");
+                    return _return(response);
+                }
+    
+                if (conn->getState() == connUpgrading || conn->getState() == connWebSocket) {
+                    // already upgraded to websocket. deny access.
+                    auto response = controller->createResponse(Status::CODE_400, "busy upgrading");
+                    return _return(response);
+                }
+                
                 if (dbg) OATPP_LOGd("SIO", "SioGet {} WS UPGRADE", sid);
 
                 auto parameters = std::make_shared<
@@ -134,13 +150,20 @@ class SocketIoController : public oatpp::web::server::api::ApiController
                 return _return(response);
             }
 
-            if (conn->hasWebsocket()) {
+            if (conn->getState() == connWebSocket) {
                 // already upgraded to websocket. deny access.
                 auto response = controller->createResponse(Status::CODE_400);
                 return _return(response);
             }
-            if (conn->getState() == connOpening) {
-                if (dbg) OATPP_LOGd("SIO", "SioGet {} handleLp IN UPGRADE", sid);
+            if (conn->getState() == connUpgrading) {
+                if (dbg)
+                    OATPP_LOGd("SIO", "SioGet {} handleLp IN UPGRADE", sid);
+
+                // auto response =
+                //     controller->createResponse(Status::CODE_200, "6");  // NOOP
+                // return _return(response);
+
+                // return yieldTo(&SioGet::sendNoop);
                 return yieldTo(&SioGet::wait4Msgs);
             }
             if (conn->hasLongPoll()) {
@@ -158,29 +181,40 @@ class SocketIoController : public oatpp::web::server::api::ApiController
             return yieldTo(&SioGet::wait4Msgs);
         }
 
+        Action sendNoop()
+        {
+            auto response =
+                controller->createResponse(Status::CODE_200, "6");  // NOOP
+            return _return(response);
+        }
+
         Action wait4Msgs()
         {
             using namespace oatpp_sio::eio;
             auto sid = request->getQueryParameter("sid");
 
             // assert conn is set...
+            if (conn->getState() == connClosed) {
+                if (dbg)
+                    OATPP_LOGd("CTRL", "SioGet {} wait4Msgs connClosed", sid);
+                return _return(
+                    controller->createResponse(Status::CODE_400, "closed"));
+            }
             if (conn->hasMsgs()) {
                 auto msg = conn->deqMsg();
 
                 conn->clearLongPoll();
 
-                if (dbg) OATPP_LOGd("CTRL", "SioGet {} wait4Msgs GOT [{}]", sid, msg);
+                if (dbg)
+                    OATPP_LOGd("CTRL", "SioGet {} wait4Msgs GOT [{}]", sid,
+                               msg);
                 auto response =
                     controller->createResponse(Status::CODE_200, msg);
                 response->putHeader("Content-Type", "text/plain");
                 return _return(response);
             }
-            if (conn->getState() == connClosed) {
-                if (dbg) OATPP_LOGd("CTRL", "SioGet {} wait4Msgs connClosed", sid);
-                return _return(
-                    controller->createResponse(Status::CODE_400, "closed"));
-            }
-            // if (dbg) OATPP_LOGd("CTRL", "SioGet {} wait4Msgs...", sid);
+
+            if (dbg) OATPP_LOGd("CTRL", "SioGet {} wait4Msgs...", sid);
             return oatpp::async::Action::createWaitRepeatAction(
                 100 * 1000 + oatpp::Environment::getMicroTickCount());
         }
@@ -190,8 +224,9 @@ class SocketIoController : public oatpp::web::server::api::ApiController
             auto sio = request->getQueryParameter("EIO");
             auto transport = request->getQueryParameter("transport");
             auto sid = request->getQueryParameter("sid");
-            if (dbg) OATPP_LOGd("SIO", "SioGet {} ************** GET {} t {}", sid, sio,
-                       transport);
+            if (dbg)
+                OATPP_LOGd("SIO", "SioGet {} ************** GET {} t {}", sid,
+                           sio, transport);
 
             // check pre-conditions:
             if (!sio || sio != "4") {
@@ -216,7 +251,7 @@ class SocketIoController : public oatpp::web::server::api::ApiController
     {
         ENDPOINT_ASYNC_INIT(SioPost);
 
-        const bool dbg = false;
+        const bool dbg = true;
         oatpp_sio::eio::EioConnection::Ptr conn;
 
         Action withBody(const String& body)
@@ -243,7 +278,9 @@ class SocketIoController : public oatpp::web::server::api::ApiController
             auto transport = request->getQueryParameter("transport");
             auto sid = request->getQueryParameter("sid");
 
-            if (dbg) OATPP_LOGd("SIO", "SioPost {} POST {} t {}", sid, sio, transport);
+            if (dbg)
+                OATPP_LOGd("SIO", "SioPost {} POST {} t {}", sid, sio,
+                           transport);
 
             if (!sio || sio != "4" || !sid) {
                 return _return(controller->createResponse(Status::CODE_400));
@@ -269,8 +306,9 @@ class SocketIoController : public oatpp::web::server::api::ApiController
                                                            "duplicate get req");
                 return _return(response);
             }
-            if (dbg) OATPP_LOGd("SIO", "SioPost {} POST ok {} t {} s {}", sid, sio,
-                       transport);
+            if (dbg)
+                OATPP_LOGd("SIO", "SioPost {} POST ok {} t {} s {}", sid, sio,
+                           transport);
 
             return request->readBodyToStringAsync().callbackTo(
                 &SioPost::withBody);

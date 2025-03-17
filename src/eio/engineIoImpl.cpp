@@ -25,36 +25,9 @@ EngineImpl::~EngineImpl() {}
  * *****************************
  */
 
-std::string EngineImpl::startConnection(
-    const std::shared_ptr<protocol::http::incoming::Request> request,
-    bool testSioLayer)
-{
-    std::string sid = generateSid();
-    auto conn = std::make_shared<EioConnection>(*this, sid);
-    connections.emplace(sid, conn);
-
-    if (!testSioLayer) {
-        conn->setSio(std::make_shared<oatpp_sio::sio::SioAdapter>(sid), conn);
-    }
-
-    auto dto = EioStartup::createShared();
-    dto->sid = sid;
-    dto->upgrades->push_back("websocket");
-    // dto->upgrades->push_back("polling");
-    dto->pingInterval = pingInterval;
-    dto->pingTimeout = pingTimeout;
-    dto->maxPayload = maxPayload;
-
-    oatpp::String s = om->writeToString(dto);
-    const std::string& ss = *s;
-
-    OATPP_LOGd("EIO", "EngineIoController: startConnection {}", s);
-
-    return pktEncode(eioOpen, ss);
-}
-
 void EngineImpl::removeConnection(std::string& sid)
 {
+    oatpp::async::LockGuard guard(&lock);
     auto iter = connections.find(sid);
     if (iter != connections.end()) {
         // iter->second.close();
@@ -64,37 +37,30 @@ void EngineImpl::removeConnection(std::string& sid)
 
 EioConnection::Ptr EngineImpl::getConnection(const std::string& sid)
 {
+    oatpp::async::LockGuard guard(&lock);
     auto iter = connections.find(sid);
     if (iter != connections.end()) {
         return iter->second;
     }
+    OATPP_LOGw("EI", "getConnection could not find matching sid: " + sid);
+    printSockets();
     return nullptr;
 }
 
 EioConnection::Ptr EngineImpl::getConnection(const WebsocketPtr& socket)
 {
+    oatpp::async::LockGuard guard(&lock);
     auto iter = connections.begin();
     while (iter != connections.end()) {
-        if (iter->second->getWsConn()->theSocket() == socket) {
+        if (iter->second->getWsConn() &&
+            iter->second->getWsConn()->theSocket() == socket) {
             return iter->second;
         }
         iter++;
     }
 
-    OATPP_LOGw("EIO", "getConnection could not find matching websocket!");
-    return nullptr;
-}
-
-std::shared_ptr<WSConnection> EngineImpl::getWsConn(
-    const std::string& sid) const
-{
-    auto iter = connections.find(sid);
-    if (iter != connections.end()) {
-        // iter->second.close();
-        auto eioConn = iter->second;
-        std::shared_ptr<WSConnection> ws = eioConn->getWsConn();
-        return ws;
-    }
+    OATPP_LOGw("EI", "getConnection could not find matching websocket! + ws");
+    printSockets();
     return nullptr;
 }
 
@@ -112,20 +78,27 @@ void EngineImpl::printSockets() const
 
 Engine::ResponsePtr EngineImpl::startLpConnection(
     const oatpp::web::server::api::ApiController* controller,
-    const std::shared_ptr<oatpp::web::protocol::http::incoming::Request> req,
-    bool testSioLayer)
+    const std::shared_ptr<oatpp::web::protocol::http::incoming::Request> req)
 
 {
     std::string sid = generateSid();
-    auto conn = std::make_shared<EioConnection>(*this, sid);
-    connections.emplace(sid, conn);
+    std::shared_ptr<EioConnection> conn;
+    {
+        oatpp::async::LockGuard guard(&lock);
+        conn = std::make_shared<EioConnection>(*this, sid);
 
-    if (testSioLayer) { // @TODO remove test code
-        conn->setSpace(theSpace);
-        theSpace->subscribe(sid, conn);
-    } else {
-        conn->setSio(std::make_shared<oatpp_sio::sio::SioAdapter>(sid), conn);
+        connections.insert({sid, conn});
+
+        if (testMode) {  // @TODO remove test code
+            conn->setSpace(theSpace);
+            theSpace->subscribe(sid, conn);
+        } else {
+            conn->setSio(std::make_shared<oatpp_sio::sio::SioAdapter>(sid),
+                         conn);
+        }
     }
+
+    OATPP_LOGd("EIO", "EngineIoController: startLpConnection > {}", sid);
 
     auto dto = EioStartup::createShared();
     dto->sid = sid;
@@ -137,22 +110,15 @@ Engine::ResponsePtr EngineImpl::startLpConnection(
     oatpp::String s = om->writeToString(dto);
     const std::string& ss = *s;
 
-    OATPP_LOGd("EIO", "EngineIoController: startConnection {}", s);
+    OATPP_LOGd("EIO", "EngineIoController: startLpConnection {}", s);
 
     std::string msg = pktEncode(eioOpen, ss);
 
     auto response = controller->createResponse(Status::CODE_200, msg);
     response->putHeader("Content-Type", "text/plain");
-    return response;
-}
 
-Engine::ResponsePtr EngineImpl::handleSocketMsg(
-    oatpp::web::server::api::ApiController* controller,
-    const std::shared_ptr<oatpp::web::protocol::http::incoming::Request> req,
-    const std::string& sid)
-{
-    auto response = controller->createResponse(Status::CODE_200, "");
-    response->putHeader("Content-Type", "text/plain");
+    conn->scheduleDelayedPingMsg();
+
     return response;
 }
 
@@ -172,8 +138,7 @@ std::string EngineImpl::generateSid()
     return "sid_" + sid;
 }
 
-void EngineImpl::registerConnection(std::shared_ptr<WSConnection> wsConn,
-                                    bool testSioLayer)
+void EngineImpl::registerConnection(std::shared_ptr<WSConnection> wsConn)
 {
     OATPP_LOGd("EIO", "EngineIoController: registerConnection");
     // no sid. start new.
@@ -195,7 +160,7 @@ void EngineImpl::registerConnection(std::shared_ptr<WSConnection> wsConn,
 
     OATPP_LOGd("EIO", "EngineIoController: registerConnection {}", s);
 
-    if (testSioLayer) {
+    if (testMode) {
         theSpace->subscribe(sid, conn);
         conn->setSpace(theSpace);
     } else {
@@ -208,4 +173,6 @@ void EngineImpl::registerConnection(std::shared_ptr<WSConnection> wsConn,
     wsConn->sendMessageAsync(msg);
 
     conn->upgrade(wsConn, true);
+
+    conn->scheduleDelayedPingMsg();
 }

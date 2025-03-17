@@ -32,7 +32,7 @@ class WSConnection : public oatpp::websocket::AsyncWebSocket::Listener
    private:
     /* Inject application components */
 
-    OATPP_COMPONENT(std::shared_ptr<oatpp::async::Executor>, m_asyncExecutor,
+    OATPP_COMPONENT(std::shared_ptr<oatpp::async::Executor>, async,
                     "ws");
 
    private:

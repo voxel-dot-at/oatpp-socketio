@@ -22,14 +22,11 @@ EioConnection::EioConnection(Engine& engine, std::string sid)
     : sid(sid), state(connInit), engine(engine), connType(polling)
 {
     if (dbg) cout << "EICO::EICO " << sid << "  " << this << endl;
-    scheduleDelayedPingMsg();
 }
 
 EioConnection::~EioConnection()
 {
     if (dbg) cout << "EICO:~EICO " << sid << "  " << this << endl;
-    // space->unsubscribe(sid);
-    // engine.removeConnection(sid);
 }
 
 void EioConnection::print() const
@@ -58,10 +55,12 @@ std::string EioConnection::pktEncode(EioPacketType pkt, const std::string& msg)
 void EioConnection::handleMessage(std::shared_ptr<Message> msg)
 {
     if (dbg)
-        OATPP_LOGd("EICO", "{} handleMessage state {} msg {} {}", sid,
-                   (char)getState(), msgs.size(), msg->body);
+        OATPP_LOGd("EICO", "{} handleMessage state {} ws {} msg {}", sid,
+                   (char)getState(), wsConn.get() != nullptr, msg->body);
     if (getState() == connClosed) {
-        if (dbg) OATPP_LOGd("EICO", "UNSUB");  // we don't come here!
+        if (dbg)
+            OATPP_LOGw("EICO",
+                       "UNSUB - should not happen!");  // we don't come here!
         if (space.get()) {
             space->unsubscribe(sid);
         }
@@ -70,7 +69,7 @@ void EioConnection::handleMessage(std::shared_ptr<Message> msg)
         }
         return;
     }
-    if (this->wsConn.get()) {
+    if (wsConn.get()) {
         if (msg->binary) {
             this->wsConn->sendMessageAsync(msg->body, msg->binary);
         } else {
@@ -90,16 +89,17 @@ void EioConnection::handleMessage(std::shared_ptr<Message> msg)
 
 void EioConnection::upgrade(WsConnPtr ws, bool webSockOnly)
 {
+    OATPP_LOGw("EICO", "{} upgrade()??? webSockOnly {} ", sid, webSockOnly);
     wsConn = ws;
     // get the shared pointer of self:
     wsConn->setMessageReceiver(theEngine->getConnection(sid));
 
     if (webSockOnly) {
         connType = websocket;
-        state = connOpen;
+        state = connWebSocket;
     } else {
         // in the middle of the upgrade process
-        state = connOpening;
+        state = connUpgrading;
     }
 }
 
@@ -114,7 +114,15 @@ bool EioConnection::handleMessageFromWs(const std::string& body, bool isBinary)
         auto msg = std::make_shared<Message>();
         msg->body = body;
         msg->binary = isBinary;
-        space->publish(msg);
+        if (sioFunnel.get()) {
+            OATPP_LOGd("EICO", "{} handleMessageFromWs msg {} {} FUNNEL!", sid,
+                       msgs.size(), body);
+            sioFunnel->onEioMessage(msg);
+        } else {
+            OATPP_LOGd("EICO", "{} handleMessageFromWs msg {} {} SPACY!", sid,
+                       msgs.size(), body);
+            space->publish(msg);
+        }
         return true;
     }
 
@@ -126,9 +134,9 @@ void EioConnection::handleEioMessage(const std::string& body, bool isBinary)
 {
     char pType = body[0];
 
-    if (dbg)
-        OATPP_LOGd("EICO", "{} handleEioMessage |{}| {} {}", sid, body,
-                   body.size(), isBinary);
+    // if (dbg)
+    //     OATPP_LOGd("EICO", "{} handleEioMessage |{}| {} {} st {} pt {}", sid,
+    //                body, body.size(), isBinary, (int)state, pType);
 
     switch (pType) {
         case eioClose:
@@ -136,8 +144,7 @@ void EioConnection::handleEioMessage(const std::string& body, bool isBinary)
             shutdownConnection();
             break;
         case eioPing:
-            if (dbg) OATPP_LOGd("EICO", "{} handleEioMessage ping", sid);
-            if (state == connOpening) {
+            if (state == connUpgrading) {
                 if (body == "2probe") {
                     if (dbg)
                         OATPP_LOGd("EICO", "{} handleEioMessage ping probe! :D",
@@ -145,6 +152,7 @@ void EioConnection::handleEioMessage(const std::string& body, bool isBinary)
                     this->wsConn->sendMessageAsync(pktEncode(eioPong, "probe"),
                                                    false);
                 }
+                checkUpgradeTimeout();
             } else {
                 OATPP_LOGw("EICO", "{} handleEioMessage NO PING ALLOWED!", sid);
                 shutdownConnection();
@@ -158,10 +166,23 @@ void EioConnection::handleEioMessage(const std::string& body, bool isBinary)
         case eiouUgrade:
             if (dbg)
                 ;
-            OATPP_LOGd("EICO", "{} handleEioMessage upgrade #MSGS {}", sid,
-                       msgs.size());
+            OATPP_LOGd("EICO", "{} handleEioMessage upgrade #MSGS {} LP? {}",
+                       sid, msgs.size(), longPollRequest.get() != nullptr);
+
+            for (unsigned int i = 0; i < msgs.size(); i++) {
+                OATPP_LOGd("EICO", "{} handleEioMessage upgrade MSG Q {} {}", i,
+                           msgs[i]);
+            }
+            if (longPollRequest
+                    .get()) {  // clear pending request by sending a nop
+                longPollRequest.reset();
+                enqMsg(pktEncode(eioNoop, ""));
+            }
             connType = websocket;
-            state = connOpen;
+            state = connWebSocket;
+
+            this->wsConn->sendMessageAsync(deqMsg(), false);
+
             break;
         case eioMessage: {
             if (dbg) OATPP_LOGd("EICO", "{} handleEioMessage msg", sid);
@@ -182,7 +203,11 @@ void EioConnection::handleEioMessage(const std::string& body, bool isBinary)
             auto msg = std::make_shared<Message>();
             msg->body = bin;
             msg->binary = true;
-            space->publish(msg);
+            if (sioFunnel.get()) {
+                sioFunnel->onEioMessage(msg);
+            } else {
+                space->publish(msg);
+            }
             break;
         }
         default: {
@@ -247,7 +272,9 @@ void EioConnection::shutdownConnection()
 std::string EioConnection::deqMsg()
 {
     oatpp::async::LockGuard guard(&lpLock);
-
+    if (!msgs.size()) {
+        return "";
+    }
     if (dbg) OATPP_LOGd("EICO", "GO {} ", msgs.size());
     stringstream ss;
     auto iter = msgs.begin();
@@ -265,17 +292,24 @@ std::string EioConnection::deqMsg()
 
 void EioConnection::enqMsg(const std::string& msg)
 {
+    if (state == connUpgrading) {
+        return;
+    }
     {
         oatpp::async::LockGuard guard(&lpLock);
         msgs.push_back(msg);
     }
-    if (dbg) OATPP_LOGd("EICO", "{} ENQ MSG {}", sid, msgs.size());
-    lpSema.notifyAll();
+    if (dbg)
+        OATPP_LOGd("EICO", "{} ENQ MSG {} s {} |{}|", sid, msgs.size(),
+                   state == connUpgrading, msg);
+    if (state != connUpgrading) {
+        lpSema.notifyAll();
+    }
 }
 
-void EioConnection::sendPongAsync()
+void EioConnection::sendPingAsync()
 {
-    if (connType == websocket) {
+    if (getState() == connWebSocket) {
         // assert wsConn
         if (wsConn.get()) {
             wsConn->sendMessageAsync(pktEncode(eioPing, ""), false);
@@ -285,24 +319,126 @@ void EioConnection::sendPongAsync()
     }
 }
 
+void EioConnection::checkUpgradeTimeout()
+{
+    class TimeoutCoRo : public oatpp::async::Coroutine<TimeoutCoRo>
+    {
+       private:
+        // EioConnection::Ptr conn;
+        std::string sid;
+        unsigned long to;
+
+       public:
+        TimeoutCoRo(const std::string& sid, unsigned long timeout)
+            : sid(sid), to(timeout)
+        {
+        }
+
+        Action act() override
+        {
+            OATPP_LOGd("EICO:TO", "{} TO....", sid);
+            auto conn = theEngine->getConnection(sid);
+            if (!conn) {
+                OATPP_LOGw("EICO:TO", "{} no conn found - ignoring....", sid);
+                finish();
+            }
+            if (conn->getState() == connClosed) {
+                if (dbg)
+                    OATPP_LOGd("EICO:TO", "{} conn was closed, leaving", sid);
+                return finish();
+            }
+            if (conn->getState() != connWebSocket) {
+                if (dbg)
+                    OATPP_LOGi("EICO:TO",
+                               "{} Conn not upgraded! s={} - closing!", sid,
+                               conn->getState());
+                conn->shutdownConnection();
+                return finish();
+            } else {
+                // upgraded. stop.
+                return finish();
+            }
+        }
+    };
+
+    async->execute<TimeoutCoRo>(sid, engine.pingTimeout);
+}
+
+void EioConnection::checkPongTimeout(EioConnection::Ptr conn)
+{
+    class TimeoutCoRo : public oatpp::async::Coroutine<TimeoutCoRo>
+    {
+       private:
+        std::string sid;
+        EioConnection::Ptr conn;
+        unsigned long to;
+        bool first = true;
+
+       public:
+        TimeoutCoRo(const std::string& sid, EioConnection::Ptr conn,
+                    unsigned long timeout)
+            : sid(sid), conn(conn), to(timeout)
+        {
+        }
+
+        Action shutdown()
+        {
+            OATPP_LOGd("EICO:PO", "{} shutdown", sid);
+            conn->shutdownConnection();
+            return finish();
+        }
+
+        Action act() override
+        {
+            if (first) {  // perform initial delay
+                first = false;
+                return waitRepeat(1 * std::chrono::milliseconds(to));
+            }
+            OATPP_LOGd("EICO:PO", "{} PO # {} ", sid, conn->pongCount);
+
+            if (conn->getState() == connClosed) {
+                if (dbg)
+                    OATPP_LOGd("EICO:PO", "{} conn was closed, leaving", sid);
+                return finish();
+            }
+            if (!conn->pongCount) {
+                if (dbg) OATPP_LOGi("EICO:PO", "{} NO Pong! - closing!", sid);
+                conn->enqMsg(conn->pktEncode(eioClose, ""));
+                return yieldTo(&TimeoutCoRo::shutdown);
+            }
+            conn->pongCount = 0;
+            return finish();
+        }
+    };
+
+    async->execute<TimeoutCoRo>(sid, conn, engine.pingTimeout);
+}
+
 void EioConnection::scheduleDelayedPingMsg()
 {
     class SendDelayedPingCoroutine
         : public oatpp::async::Coroutine<SendDelayedPingCoroutine>
     {
        private:
-        // EioConnection::Ptr conn;
         std::string sid;
+        EioConnection::Ptr conn;
         unsigned long pi, pt;
         bool pingSent = false;
-        long count, idle;
+        long count, idle, notYet;
         bool first = true;
 
        public:
         SendDelayedPingCoroutine(const std::string& sid,
+                                 EioConnection::Ptr conn,
                                  unsigned long pingInterval,
                                  unsigned long pingTimeout)
-            : sid(sid), pi(pingInterval), pt(pingTimeout), count(-1), idle(0)
+            : sid(sid),
+              conn(conn),
+              pi(pingInterval),
+              pt(pingTimeout),
+              count(-1),
+              idle(0),
+              notYet(0)
         {
         }
 
@@ -310,12 +446,9 @@ void EioConnection::scheduleDelayedPingMsg()
         {
             if (first) {  // perform initial delay
                 first = false;
-                return waitRepeat(1 * std::chrono::milliseconds(pi));
-            }
-            auto conn = theEngine->getConnection(sid);
-            if (!conn) {
                 return waitRepeat(std::chrono::milliseconds(pi));
             }
+
             int pongs = conn->getPongCount();
 
             if (conn->getState() == connClosed) {
@@ -325,31 +458,25 @@ void EioConnection::scheduleDelayedPingMsg()
                                sid, conn->getState(), pongs);
                 return finish();
             }
-            // todo: add pong timer. instead, we check on the next iteration
-            if (pongs - count == 0) {
-                // OATPP_LOGd("EICO:SCHED", "{} ping-pong: idle... {} {} {}", sid,
-                //            pongs, count, idle);
-                if (idle > 0) {
-                    if (dbg)
-                        OATPP_LOGi("EICO:SCHED",
-                                   "{} ping-pong: idle closing! {} {} {}", sid,
-                                   pongs, count, idle);
-                    // no need to send close, the connection is stale already
-                    conn->shutdownConnection();
-                    return finish();
-                }
-                idle++;
-            } else {
-                idle = 0;
+            if (conn->getState() == connUpgrading) {
+                // skip during upgrade..
+                return waitRepeat(std::chrono::milliseconds(pi));
             }
-            count = pongs;
 
-            conn->sendPongAsync();
+            OATPP_LOGi("EICO:SCHED", "{} ping.. # {}", sid, conn->pongCount);
+            // pongCount is reset in the pongtimeout handler
+            conn->checkPongTimeout(conn);
+            conn->sendPingAsync();
 
             return waitRepeat(std::chrono::milliseconds(pi));
         }
     };
-    // MAYBE refactor to getConnection() inside the timer, need to check existence...
-    async->execute<SendDelayedPingCoroutine>(sid, engine.pingInterval,
+    EioConnection::Ptr conn = theEngine->getConnection(sid);
+    if (!conn.get()) {
+        OATPP_LOGi("EICO:PING", "NO CONN YET?!? Try next time....");
+    }
+    OATPP_LOGd("EICO:SCHED", "{} START", sid);
+
+    async->execute<SendDelayedPingCoroutine>(sid, conn, engine.pingInterval,
                                              engine.pingTimeout);
 }

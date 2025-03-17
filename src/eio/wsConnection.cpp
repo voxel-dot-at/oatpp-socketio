@@ -104,7 +104,7 @@ void WSConnection::closeSocketAsync()
     };
 
     if (m_socket) {
-        m_asyncExecutor->execute<CloseConnCoroutine>(m_socket);
+        async->execute<CloseConnCoroutine>(m_socket);
     }
 }
 
@@ -150,8 +150,8 @@ void WSConnection::sendMessageAsync(const String& message, bool isBinary)
     };
 
     if (m_socket) {
-        m_asyncExecutor->execute<SendMessageCoroutine>(&wLock, m_socket,
-                                                       message, isBinary);
+        async->execute<SendMessageCoroutine>(&wLock, m_socket, message,
+                                             isBinary);
     }
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -167,6 +167,7 @@ void WSInstanceListener::onAfterCreate_NonBlocking(
 {
     SOCKETS++;
     String sid;
+
     if (params.get()) {
         auto iter = params->find("sid");
         if (iter != params->end()) {
@@ -197,8 +198,10 @@ void WSInstanceListener::onAfterCreate_NonBlocking(
                        sid);
             return;
         }
-        if (eiConn->hasWebsocket()) {
-            // this is a duplicate connect request - kick it.
+        if (eiConn->getState() == connWebSocket) {
+            OATPP_LOGi(TAG, "DUP websocket! ALREADY HAVE ONE for {} - ignoring!",
+                sid);
+     // this is a duplicate connect request - kick it.
             wsConn->closeSocketAsync();
             return;
         }
@@ -216,10 +219,9 @@ void WSInstanceListener::onBeforeDestroy_NonBlocking(
     OATPP_LOGd(TAG, "Connection closed. Connection count={}", SOCKETS.load());
 
     auto conn = theEngine->getConnection(socket);
-    if (  conn.get()) {
+    if (conn.get()) {
         conn->shutdownConnection();
     } else {
         OATPP_LOGi(TAG, "could not find upper layer connections. ignoring.");
-
     }
 }

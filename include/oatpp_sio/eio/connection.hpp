@@ -45,6 +45,8 @@ typedef enum
     connInit = '0',
     connOpening,
     connOpen,
+    connUpgrading,
+    connWebSocket,
     connClosing,
     connClosed
 } ConnState;
@@ -148,13 +150,18 @@ class EioConnection : public MessageReceiver, public MessageConsumer
 
     void enqMsg(const std::string& msg);
 
+    void scheduleDelayedPingMsg();
    private:
     void handleEioMessage(const std::string& body, bool isBinary);
 
-    void scheduleDelayedPingMsg();
+    // execute a timer & close connection if not upgraded after timeout
+    void checkUpgradeTimeout();
+
+    // execute a timer & close connection if not ponged after timeout
+    void checkPongTimeout(EioConnection::Ptr conn);
 
     // send a pong message either to the message queue or to websocket
-    void sendPongAsync();
+    void sendPingAsync();
 };
 
 }  // namespace eio

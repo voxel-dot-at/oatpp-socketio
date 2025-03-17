@@ -35,7 +35,6 @@ class Engine
     unsigned int pingInterval = 300 * 1000;
     unsigned int pingTimeout = 200 * 1000;
     unsigned int maxPayload = 1e6;
-
     // todo: list of known connections here?
 
    public:  // convenience typedefs
@@ -44,29 +43,33 @@ class Engine
     Engine() : theSpace(std::make_shared<MessagePool>()) {}
     virtual ~Engine() {}
 
+    void setConfig(unsigned int interval, unsigned int timeout,
+                   unsigned int maxSize)
+    {
+        pingInterval = interval;
+        pingTimeout = timeout;
+        maxPayload = maxSize;
+    }
+    // for engine.io protocol tests enable this to override the actual socket.io layer:
+    bool testMode = false;
+
     /** start a long-polling connection - assingns a sid and registers a connection onject.
      * @param controller
      * @param req
-     * @param testSioLayer - use testing top-level layer or socket.io connector (the standard case)
      */
     virtual ResponsePtr startLpConnection(
         const oatpp::web::server::api::ApiController* controller,
         const std::shared_ptr<oatpp::web::protocol::http::incoming::Request>
-            req,
-        bool testSioLayer = false) = 0;
+            req) = 0;
 
     // websocket
-    virtual std::string startConnection(const std::shared_ptr<Request> req,
-                                        bool testSioLayer = false) = 0;
+    virtual void registerConnection(std::shared_ptr<WSConnection> wsConn) = 0;
 
     virtual void removeConnection(std::string& sid) = 0;
 
     virtual EioConnectionPtr getConnection(const std::string& sid) = 0;
 
     virtual EioConnectionPtr getConnection(const WebsocketPtr& socket) = 0;
-
-    virtual std::shared_ptr<WSConnection> getWsConn(
-        const std::string& sid) const = 0;
 
     void setSpace(PoolPtr spc) { theSpace = spc; }
 
