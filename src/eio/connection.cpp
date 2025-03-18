@@ -103,8 +103,6 @@ void EioConnection::upgrade(WsConnPtr ws, bool webSockOnly)
     }
 }
 
-bool EioConnection::hasMsgs() const { return msgs.size() > 0; }
-
 bool EioConnection::handleMessageFromWs(const std::string& body, bool isBinary)
 {
     // OATPP_LOGd("EICO", "{} handleMessageFromWs msg {} {}", sid, msgs.size(),
@@ -151,8 +149,8 @@ void EioConnection::handleEioMessage(const std::string& body, bool isBinary)
                                    sid);
                     this->wsConn->sendMessageAsync(pktEncode(eioPong, "probe"),
                                                    false);
+                    checkUpgradeTimeout(theEngine->getConnection(sid));
                 }
-                checkUpgradeTimeout();
             } else {
                 OATPP_LOGw("EICO", "{} handleEioMessage NO PING ALLOWED!", sid);
                 shutdownConnection();
@@ -173,9 +171,8 @@ void EioConnection::handleEioMessage(const std::string& body, bool isBinary)
                 OATPP_LOGd("EICO", "{} handleEioMessage upgrade MSG Q {} {}", i,
                            msgs[i]);
             }
-            if (longPollRequest
-                    .get()) {  // clear pending request by sending a nop
-                longPollRequest.reset();
+            if (longPollRequest.get()) {
+                // clear pending request by sending a noop packet
                 enqMsg(pktEncode(eioNoop, ""));
             }
             connType = websocket;
@@ -218,6 +215,17 @@ void EioConnection::handleEioMessage(const std::string& body, bool isBinary)
             shutdownConnection();
         }
     }
+}
+void EioConnection::setLongPoll(RequestPtr r)
+{
+    longPollRequest = r;
+    // noop it
+    // if (getState() == connUpgrading) {
+    //     OATPP_LOGi("EICO", "{} setLongPoll connUpgrading... queuing!", sid);
+
+    //     enqMsg(pktEncode(eioNoop, ""));
+    //     // lpSema.notifyAll();
+    // }
 }
 
 void EioConnection::wsHasClosed()
@@ -272,10 +280,10 @@ void EioConnection::shutdownConnection()
 std::string EioConnection::deqMsg()
 {
     oatpp::async::LockGuard guard(&lpLock);
-    if (!msgs.size()) {
-        return "";
-    }
-    if (dbg) OATPP_LOGd("EICO", "GO {} ", msgs.size());
+    // if (!msgs.size()) {
+    //     return "";
+    // }
+    if (dbg) OATPP_LOGd("EICO", "deqMsg # {} ", msgs.size());
     stringstream ss;
     auto iter = msgs.begin();
 
@@ -290,11 +298,10 @@ std::string EioConnection::deqMsg()
     return ss.str();
 }
 
+bool EioConnection::hasMsgs() const { return msgs.size() > 0; }
+
 void EioConnection::enqMsg(const std::string& msg)
 {
-    if (state == connUpgrading) {
-        return;
-    }
     {
         oatpp::async::LockGuard guard(&lpLock);
         msgs.push_back(msg);
@@ -319,39 +326,44 @@ void EioConnection::sendPingAsync()
     }
 }
 
-void EioConnection::checkUpgradeTimeout()
+void EioConnection::checkUpgradeTimeout(EioConnection::Ptr conn)
 {
-    class TimeoutCoRo : public oatpp::async::Coroutine<TimeoutCoRo>
+    class UpgradeTo : public oatpp::async::Coroutine<UpgradeTo>
     {
        private:
         // EioConnection::Ptr conn;
         std::string sid;
+        EioConnection::Ptr conn;
         unsigned long to;
+        bool first = true;
 
        public:
-        TimeoutCoRo(const std::string& sid, unsigned long timeout)
-            : sid(sid), to(timeout)
+        UpgradeTo(const std::string& sid, EioConnection::Ptr conn,
+                  unsigned long timeout)
+            : sid(sid), conn(conn), to(timeout)
         {
         }
 
         Action act() override
         {
-            OATPP_LOGd("EICO:TO", "{} TO....", sid);
-            auto conn = theEngine->getConnection(sid);
-            if (!conn) {
-                OATPP_LOGw("EICO:TO", "{} no conn found - ignoring....", sid);
-                finish();
+            OATPP_LOGd("EICO:UPTO", "{} TO....", sid);
+            if (first) {
+                // perform initial delay
+                first = false;
+                return waitRepeat(1 * std::chrono::milliseconds(to));
             }
             if (conn->getState() == connClosed) {
+                // abort - socket was closed elsewhere
                 if (dbg)
-                    OATPP_LOGd("EICO:TO", "{} conn was closed, leaving", sid);
+                    OATPP_LOGd("EICO:UPTO", "{} conn was closed, leaving", sid);
                 return finish();
             }
             if (conn->getState() != connWebSocket) {
+                // timed out - did not upgrade in time
                 if (dbg)
-                    OATPP_LOGi("EICO:TO",
+                    OATPP_LOGi("EICO:UPTO",
                                "{} Conn not upgraded! s={} - closing!", sid,
-                               conn->getState());
+                               (char)conn->getState());
                 conn->shutdownConnection();
                 return finish();
             } else {
@@ -361,7 +373,7 @@ void EioConnection::checkUpgradeTimeout()
         }
     };
 
-    async->execute<TimeoutCoRo>(sid, engine.pingTimeout);
+    async->execute<UpgradeTo>(sid, conn, engine.pingTimeout);
 }
 
 void EioConnection::checkPongTimeout(EioConnection::Ptr conn)
@@ -399,6 +411,12 @@ void EioConnection::checkPongTimeout(EioConnection::Ptr conn)
             if (conn->getState() == connClosed) {
                 if (dbg)
                     OATPP_LOGd("EICO:PO", "{} conn was closed, leaving", sid);
+                return finish();
+            }
+            if (conn->getState() == connUpgrading) {
+                // ignore during upgrade process.
+                if (dbg)
+                    OATPP_LOGd("EICO:TO", "{} conn upgrading - ignore..", sid);
                 return finish();
             }
             if (!conn->pongCount) {

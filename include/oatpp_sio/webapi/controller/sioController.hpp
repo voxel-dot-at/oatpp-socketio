@@ -143,10 +143,10 @@ class SocketIoController : public oatpp::web::server::api::ApiController
             }
             // new
             conn = theEngine->getConnection(sid);
-            if (!conn) {
+            if (!conn.get()) {
                 // stale connection id
                 auto response =
-                    controller->createResponse(Status::CODE_400, "no sid");
+                    controller->createResponse(Status::CODE_400, "no conn");
                 return _return(response);
             }
 
@@ -155,17 +155,17 @@ class SocketIoController : public oatpp::web::server::api::ApiController
                 auto response = controller->createResponse(Status::CODE_400);
                 return _return(response);
             }
-            if (conn->getState() == connUpgrading) {
-                if (dbg)
-                    OATPP_LOGd("SIO", "SioGet {} handleLp IN UPGRADE", sid);
+            // if (conn->getState() == connUpgrading) {
+            //     if (dbg)
+            //         OATPP_LOGd("SIO", "SioGet {} handleLp IN UPGRADE", sid);
 
-                // auto response =
-                //     controller->createResponse(Status::CODE_200, "6");  // NOOP
-                // return _return(response);
+            //     // auto response =
+            //     //     controller->createResponse(Status::CODE_200, "6");  // NOOP
+            //     // return _return(response);
 
-                // return yieldTo(&SioGet::sendNoop);
-                return yieldTo(&SioGet::wait4Msgs);
-            }
+            //     // return yieldTo(&SioGet::sendNoop);
+            //     return yieldTo(&SioGet::wait4Msgs);
+            // }
             if (conn->hasLongPoll()) {
                 // another poll request pending. kick.
                 OATPP_LOGw("SIO", "SioGet {} handleLp DUP REQ", sid);
@@ -175,9 +175,8 @@ class SocketIoController : public oatpp::web::server::api::ApiController
                 auto response =
                     controller->createResponse(Status::CODE_400, "dup req");
                 return _return(response);
-            } else {
-                conn->setLongPoll(request);
             }
+            conn->setLongPoll(request);
             return yieldTo(&SioGet::wait4Msgs);
         }
 
@@ -214,7 +213,7 @@ class SocketIoController : public oatpp::web::server::api::ApiController
                 return _return(response);
             }
 
-            if (dbg) OATPP_LOGd("CTRL", "SioGet {} wait4Msgs...", sid);
+            if (dbg) OATPP_LOGd("CTRL", "SioGet {} wait4Msgs... {}", sid, conn->getSid());
             return oatpp::async::Action::createWaitRepeatAction(
                 100 * 1000 + oatpp::Environment::getMicroTickCount());
         }

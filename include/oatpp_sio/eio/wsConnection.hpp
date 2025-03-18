@@ -94,10 +94,6 @@ class WSConnection : public oatpp::websocket::AsyncWebSocket::Listener
 
     // convenience typedef
     typedef std::shared_ptr<WSConnection> Ptr;
-
-   private:
-    // CoroutineStarter closeSock();
-    // CoroutineStarter sendMsg();
 };
 
 /**

@@ -123,8 +123,9 @@ class EioConnection : public MessageReceiver, public MessageConsumer
 
     bool hasMsgs() const;
     bool hasLongPoll() const { return longPollRequest.get() != nullptr; }
-    void setLongPoll(RequestPtr r) { longPollRequest = r; }
+    void setLongPoll(RequestPtr r);
     void clearLongPoll() { longPollRequest.reset(); }
+
     void injectNoop() { msgs.push_back(pktEncode(eioNoop, "")); }
     void injectClose() { msgs.push_back(pktEncode(eioClose, "")); }
 
@@ -151,11 +152,12 @@ class EioConnection : public MessageReceiver, public MessageConsumer
     void enqMsg(const std::string& msg);
 
     void scheduleDelayedPingMsg();
+
    private:
     void handleEioMessage(const std::string& body, bool isBinary);
 
     // execute a timer & close connection if not upgraded after timeout
-    void checkUpgradeTimeout();
+    void checkUpgradeTimeout(EioConnection::Ptr conn);
 
     // execute a timer & close connection if not ponged after timeout
     void checkPongTimeout(EioConnection::Ptr conn);

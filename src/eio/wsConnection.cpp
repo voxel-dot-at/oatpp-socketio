@@ -54,7 +54,7 @@ oatpp::async::CoroutineStarter WSConnection::readMessage(
 
     auto wholeMessage = m_messageBuffer.toStdString();
     m_messageBuffer.setCurrentPosition(0);
-
+OATPP_LOGd(TAG, "onMessage RCV {}", wholeMessage);
     if (this->recv) {
         switch (opcode) {
             case Frame::OPCODE_TEXT:
@@ -177,14 +177,6 @@ void WSInstanceListener::onAfterCreate_NonBlocking(
 
     OATPP_LOGd(TAG, "afterCreate Connection sid? {}", sid);
 
-    EngineImpl* ei = dynamic_cast<EngineImpl*>(theEngine);
-
-    // cout << "EI SOCKS -----------" <<endl;
-    // ei->printSockets();
-    // cout << "MP SOCKS -----------" <<endl;
-    // ei->getSpace()->printSubscribers();
-    // cout << "__ SOCKS -----------" <<endl;
-
     /* In this particular case we create one WSConnection per each connection */
     /* Which may be redundant in many cases */
     auto wsConn = std::make_shared<WSConnection>(socket, SOCKETS.load());
@@ -192,23 +184,25 @@ void WSInstanceListener::onAfterCreate_NonBlocking(
 
     if (sid) {
         // known -> upgrade
-        auto eiConn = ei->getConnection(sid);
+        auto eiConn = theEngine->getConnection(sid);
         if (!eiConn.get()) {
+            // fake connection request or deleted stale socket id
             OATPP_LOGw(TAG, "NO Engine.io connection found for {} - ignoring!",
                        sid);
             return;
         }
         if (eiConn->getState() == connWebSocket) {
-            OATPP_LOGi(TAG, "DUP websocket! ALREADY HAVE ONE for {} - ignoring!",
-                sid);
-     // this is a duplicate connect request - kick it.
+            OATPP_LOGw(
+                TAG, "DUP websocket! ALREADY HAVE ONE for {} - ignoring!", sid);
+            // this is a duplicate connect request - kick it.
             wsConn->closeSocketAsync();
             return;
         }
+        wsConn->setMessageReceiver(eiConn);
         eiConn->upgrade(wsConn);
     } else {
         OATPP_LOGi(TAG, "registerConnection NO sid! {}", sid);
-        ei->registerConnection(wsConn);
+        theEngine->registerConnection(wsConn);
     }
 }
 
