@@ -21,7 +21,7 @@
 #include <thread>
 
 #include "oatpp_sio/webapi/webApp.hpp"
-#include "oatpp_sio/sio/namespaces.hpp"
+#include "oatpp_sio/sio/namespace.hpp"
 #include "oatpp_sio/eio/engineIo.hpp"
 
 using namespace std;
@@ -75,14 +75,11 @@ int main(int argc, const char* argv[])
     // // configure the engine.io stack for the test suite:
     oatpp_sio::eio::theEngine->setConfig(300, 200, 1e6);
 
-    // DONE INIT 
-
+    // DONE INIT
 
     bool keepRunning = true;
     int delay = 1;
     do {
-
-
         const auto start = std::chrono::high_resolution_clock::now();
         std::this_thread::sleep_for(2000ms);
         const auto end = std::chrono::high_resolution_clock::now();
