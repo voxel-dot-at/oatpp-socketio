@@ -295,16 +295,6 @@ class SocketIoController : public oatpp::web::server::api::ApiController
                 return _return(controller->createResponse(Status::CODE_400,
                                                           "sid not found"));
             }
-            if (conn->hasLongPoll()) {
-                OATPP_LOGw("SIO", "SioPost {} DUP REQ", sid);
-                std::string ssid = sid;
-                // duplicate poll request
-                conn->injectClose();
-                theEngine->removeConnection(ssid);
-                auto response = controller->createResponse(Status::CODE_400,
-                                                           "duplicate get req");
-                return _return(response);
-            }
             if (dbg)
                 OATPP_LOGd("SIO", "SioPost {} POST ok {} t {} s {}", sid, sio,
                            transport);
