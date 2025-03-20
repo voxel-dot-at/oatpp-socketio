@@ -171,10 +171,12 @@ void EioConnection::handleEioMessage(const std::string& body, bool isBinary)
                 OATPP_LOGd("EICO", "{} handleEioMessage upgrade MSG Q {} {}", i,
                            msgs[i]);
             }
-            if (longPollRequest.get()) {
-                // clear pending request by sending a noop packet
-                enqMsg(pktEncode(eioNoop, ""));
-            }
+            sendDelayedNoop(theEngine->getConnection(sid),
+                            theEngine->pingTimeout);
+            // if (longPollRequest.get()) {
+            //     // clear pending request by sending a noop packet
+            //     enqMsg(pktEncode(eioNoop, ""));
+            // }
             connType = websocket;
             state = connWebSocket;
 
@@ -324,6 +326,44 @@ void EioConnection::sendPingAsync()
     } else {
         enqMsg(pktEncode(eioPing, ""));
     }
+}
+// execute a timer & close connection if not upgraded after timeout
+void EioConnection::sendDelayedNoop(EioConnection::Ptr conn,
+                                    unsigned int delayMs)
+{
+    class DelayNoop : public oatpp::async::Coroutine<DelayNoop>
+    {
+       private:
+        // EioConnection::Ptr conn;
+        std::string sid;
+        EioConnection::Ptr conn;
+        unsigned long delay;
+        bool first = true;
+
+       public:
+        DelayNoop(const std::string& sid, EioConnection::Ptr conn,
+                  unsigned long timeout)
+            : sid(sid), conn(conn), delay(timeout)
+        {
+        }
+
+        Action act() override
+        {
+            OATPP_LOGd("EICO:NOOP", "{} TO....", sid);
+            if (first) {
+                // perform initial delay
+                first = false;
+                return waitRepeat(1 * std::chrono::milliseconds(delay));
+            }
+            if (conn->longPollRequest.get()) {
+                if (dbg) OATPP_LOGi("EICO:NOOP", "{} sending..", sid);
+                conn->enqMsg(conn->pktEncode(eioNoop, ""));
+            }
+            return finish();
+        }
+    };
+
+    async->execute<DelayNoop>(sid, conn, engine.pingTimeout);
 }
 
 void EioConnection::checkUpgradeTimeout(EioConnection::Ptr conn)

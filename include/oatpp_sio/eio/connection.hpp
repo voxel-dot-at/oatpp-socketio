@@ -157,6 +157,9 @@ class EioConnection : public MessageReceiver, public MessageConsumer
     void handleEioMessage(const std::string& body, bool isBinary);
 
     // execute a timer & close connection if not upgraded after timeout
+    void sendDelayedNoop(EioConnection::Ptr conn, unsigned int delayMs);
+
+    // execute a timer & close connection if not upgraded after timeout
     void checkUpgradeTimeout(EioConnection::Ptr conn);
 
     // execute a timer & close connection if not ponged after timeout
