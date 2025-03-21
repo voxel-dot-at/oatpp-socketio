@@ -50,10 +50,14 @@ bool SioServer::connectToSpace(const std::string& spaceName,
         OATPP_LOGd("SioServer", "SioServer could not find {} ", spaceName);
         return false;
     }
-    sioId = generateRandomString(6);
-    iter->second->addListener(listener);
-    listener->subscribed(iter->second);
-    return true;
+    // TODO: AUTH connection here...
+    bool authed = true;
+    if (authed) {
+        sioId = generateRandomString(6);
+        iter->second->addListener(listener);
+        listener->subscribed(iter->second);
+    }
+    return authed;
 }
 
 bool SioServer::leaveSpace(const std::string& spaceName, std::string& sioId)

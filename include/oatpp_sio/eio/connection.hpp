@@ -165,6 +165,12 @@ class EioConnection : public MessageReceiver, public MessageConsumer
     // execute a timer & close connection if not ponged after timeout
     void checkPongTimeout(EioConnection::Ptr conn);
 
+    // run handleMessage in coroutine
+    void handleMessageAsync(EioConnection::Ptr conn, Message::Ptr msg);
+
+    // from our space
+    virtual void handleMessageReal(std::shared_ptr<Message> msg);
+
     // send a pong message either to the message queue or to websocket
     void sendPingAsync();
 };
