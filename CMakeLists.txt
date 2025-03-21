@@ -200,7 +200,7 @@ add_subdirectory(src)
 
 add_subdirectory(app)
 
-install(DIRECTORY "include/" DESTINATION "include/")
+install(DIRECTORY "include/" DESTINATION ${INSTALL_INCLUDE_DIR})
 
 install(
     TARGETS ${PROJECT_NAME}
