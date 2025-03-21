@@ -163,23 +163,17 @@ void EioConnection::handleEioMessage(const std::string& body, bool isBinary)
             break;
         case eiouUgrade:
             if (dbg)
-                ;
-            OATPP_LOGd("EICO", "{} handleEioMessage upgrade #MSGS {} LP? {}",
-                       sid, msgs.size(), longPollRequest.get() != nullptr);
+                OATPP_LOGd("EICO",
+                           "{} handleEioMessage upgrade #MSGS {} LP? {}", sid,
+                           msgs.size(), longPollRequest.get() != nullptr);
 
-            for (unsigned int i = 0; i < msgs.size(); i++) {
-                OATPP_LOGd("EICO", "{} handleEioMessage upgrade MSG Q {} {}", i,
-                           msgs[i]);
-            }
-            sendDelayedNoop(theEngine->getConnection(sid),
-                            theEngine->pingTimeout);
-            // if (longPollRequest.get()) {
-            //     // clear pending request by sending a noop packet
-            //     enqMsg(pktEncode(eioNoop, ""));
-            // }
             connType = websocket;
             state = connWebSocket;
 
+            // close pending long-poll request
+            sendDelayedNoop(theEngine->getConnection(sid), 1);
+
+            // send any pending messages that might have queued up:
             this->wsConn->sendMessageAsync(deqMsg(), false);
 
             break;
@@ -222,12 +216,9 @@ void EioConnection::setLongPoll(RequestPtr r)
 {
     longPollRequest = r;
     // noop it
-    // if (getState() == connUpgrading) {
-    //     OATPP_LOGi("EICO", "{} setLongPoll connUpgrading... queuing!", sid);
-
-    //     enqMsg(pktEncode(eioNoop, ""));
-    //     // lpSema.notifyAll();
-    // }
+    if (getState() == connUpgrading) {
+        sendDelayedNoop(theEngine->getConnection(sid), theEngine->pingTimeout);
+    }
 }
 
 void EioConnection::wsHasClosed()
