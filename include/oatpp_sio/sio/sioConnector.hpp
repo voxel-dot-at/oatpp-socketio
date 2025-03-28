@@ -28,11 +28,6 @@ typedef enum
     binary_ack      // 6
 } SioPacketType;
 
-class SioMessage : public oatpp_sio::Message
-{
-    std::string space = "/";
-    // std::vector<std::string> binAttachments;
-};
 
 /** A connector between the lower-level engine connection and a number of socket.io
  * namespaces. this is also responsible for en/decoding the messages into the wire 

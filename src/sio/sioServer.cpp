@@ -22,10 +22,13 @@ SioServer& SioServer::serverInstance()
     return *universe;
 }
 
-Space::Ptr SioServer::getSpace(const std::string& id) const
+Space::Ptr SioServer::getSpace(const std::string& id)
 {
     auto iter = mySpaces.find(id);
     if (iter == mySpaces.end()) {
+        if (AUTOCREATE_SPACES) {
+            return newSpace(id);
+        }
         throw std::runtime_error("space does not exist!");
     }
     return iter->second;

@@ -71,7 +71,6 @@ void SioAdapter::onSioMessage(std::shared_ptr<Space> space, Ptr sender,
 
     OATPP_LOGi("SADAP", "INCOMING SIo Message {} : {}", space->id(), m->body);
     eioConn->handleMessage(m);
-    // eioConn->handleMessage(msg);
 }
 
 static auto json = std::make_shared<oatpp::json::ObjectMapper>();
