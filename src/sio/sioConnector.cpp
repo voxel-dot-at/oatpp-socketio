@@ -64,21 +64,37 @@ void SioAdapter::onSioMessage(std::shared_ptr<Space> space, Ptr sender,
     // @TODO: encode packets here
     oatpp_sio::Message::Ptr m = std::make_shared<oatpp_sio::Message>(*msg);
     if (space->id() != "/") {
-        m->body = space->id() + "," + m->body;
+        m->body = "2" + space->id() + "," + m->body;
+    } else {
+        m->body = "2" + m->body;
     }
+
+    OATPP_LOGi("SADAP", "INCOMING SIo Message {} : {}", space->id(), m->body);
     eioConn->handleMessage(m);
-    eioConn->handleMessage(msg);
+    // eioConn->handleMessage(msg);
 }
 
 static auto json = std::make_shared<oatpp::json::ObjectMapper>();
 
-static bool parseMsg(const std::string& data, std::string& nsp,
-                     std::string& ack, std::string& payload)
+static bool parseMsg(const std::string& data, std::string& nbin,
+                     std::string& nsp, std::string& ack, std::string& payload)
 {
     unsigned int i = 0;
-
     if (data[i] >= '0' && data[i] <= '9') {
         // TODO: parse # binary packets of available.
+        unsigned int start = i;
+        for (; i < data.size(); i++) {
+            if (data[i] < '0' || data[i] > '9') {
+                break;
+            }
+        }
+        if (data[i] != '-') {
+            OATPP_LOGw("PRS", "Parse error in # bin packets!");
+            return false;
+        }
+        if (i > start) {
+            nbin = data.substr(start, i - start);
+        }
     }
     if (data[i] == '/') {
         // collect namespace:
@@ -89,8 +105,8 @@ static bool parseMsg(const std::string& data, std::string& nsp,
                 break;
             }
         }
-        if {
-            data[i] != ',' {}
+        if (data[i] != ',') {
+            OATPP_LOGw("PRS", "Parse error in namespace!");
             return false;
         }
         nsp = data.substr(start, i);
@@ -118,15 +134,15 @@ static bool parseMsg(const std::string& data, std::string& nsp,
     return true;
 }
 
-// from socketio
 void SioAdapter::onSioEvent(const std::string& data)
 {
     OATPP_LOGi("SADAP", "onSioEvent |{}|", data);
+    std::string nbin = "";
     std::string nsp = "/";
     std::string ackId = "";
     std::string payload = "{}";
 
-    bool success = parseMsg(data, nsp, ackId, payload);
+    bool success = parseMsg(data, nbin, nsp, ackId, payload);
 
     OATPP_LOGi("SADAP", "onSioEvent EMIT |{}|", payload);
 
@@ -134,7 +150,7 @@ void SioAdapter::onSioEvent(const std::string& data)
     {
         auto self = eioConn->getSio();
         auto msg = std::make_shared<oatpp_sio::Message>();
-        msg->body = payload;
+        msg->body =  payload;
         auto space = SioServer::serverInstance().getSpace(nsp);
         space->publish(space, self, msg);
     }
@@ -158,11 +174,12 @@ void SioAdapter::onSioConnect(const std::string& connTo)
 {
     OATPP_LOGi("SADAP", "onSioConnect... |{}|", connTo);
 
+    std::string nbin = "";
     std::string space = "/";
     std::string ackId = "";
     std::string payload = "{}";
 
-    bool success = parseMsg(connTo, space, ackId, payload);
+    bool success = parseMsg(connTo, nbin, space, ackId, payload);
 
     std::string sioId;
     auto self = eioConn->getSio();

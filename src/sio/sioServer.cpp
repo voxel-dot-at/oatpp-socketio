@@ -37,7 +37,7 @@ Space::Ptr SioServer::newSpace(const std::string& id)
     if (iter != mySpaces.end()) {
         throw std::runtime_error("space exists!");
     }
-    auto spc = std::make_shared<Space>("id");
+    auto spc = std::make_shared<Space>(id);
     mySpaces.insert({id, spc});
     return spc;
 }
