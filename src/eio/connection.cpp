@@ -57,6 +57,7 @@ void EioConnection::handleMessage(std::shared_ptr<Message> msg)
     handleMessageAsync(theEngine->getConnection(sid), msg);
 }
 
+// the synchronous part:
 void EioConnection::handleMessageReal(std::shared_ptr<Message> msg)
 {
     if (dbg)

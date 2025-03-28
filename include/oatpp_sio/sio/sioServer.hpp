@@ -2,6 +2,8 @@
 
 #include <unordered_map>
 
+#include "oatpp_sio/message.hpp"
+
 #include "oatpp_sio/eio/engineIo.hpp"
 #include "oatpp_sio/eio/connection.hpp"
 
@@ -10,6 +12,19 @@
 namespace oatpp_sio {
 namespace sio {
 
+/** an authentication shim layer.  */
+class SioAuth
+{
+   public:
+    virtual bool mayConnect(const std::string& spaceName,
+                            oatpp_sio::sio::SpaceListener::Ptr listener)
+    {
+        return true;
+    };
+
+    typedef std::shared_ptr<SioAuth> Ptr;
+};
+
 /** A connector between the lower-level engine connection and a number of socket.io
  * namespaces. this is also responsible for en/decoding the messages into the wire format  */
 class SioServer
@@ -17,8 +32,12 @@ class SioServer
     static SioServer* universe;
     std::unordered_map<std::string, Space::Ptr> mySpaces;
 
+    const int SID_LENGTH = 6;  // number of characters for the session id
+
     SioServer();
     virtual ~SioServer();
+
+    SioAuth::Ptr auth;
 
    public:
     static SioServer& serverInstance();

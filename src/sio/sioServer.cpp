@@ -7,11 +7,12 @@ SioServer* SioServer::universe = nullptr;
 
 SioServer::SioServer()
 {
-    auto spc = std::make_shared<Space>("/");
-    mySpaces.insert({"/", spc});
+    auth = std::make_shared<SioAuth>();
+    newSpace("/");
 }
 
-SioServer::~SioServer() {}
+SioServer::~SioServer() {
+}
 
 SioServer& SioServer::serverInstance()
 {
@@ -45,32 +46,37 @@ bool SioServer::connectToSpace(const std::string& spaceName,
                                oatpp_sio::sio::SpaceListener::Ptr listener,
                                std::string& sioId)
 {
-    auto iter = mySpaces.find(spaceName);
-    if (iter == mySpaces.end()) {
-        OATPP_LOGd("SioServer", "SioServer could not find {} ", spaceName);
+    Space::Ptr space = getSpace(spaceName);
+
+    OATPP_LOGd("SioServer", "connectToSpace -> {} ", spaceName);
+
+    if (!space.get()) {
+        OATPP_LOGd("SioServer", "connectToSpace() SioServer could not find {} ",
+                   spaceName);
         return false;
     }
-    // TODO: AUTH connection here...
+    // @TODO: AUTH connection here...
     bool authed = true;
     if (authed) {
-        sioId = generateRandomString(6);
-        iter->second->addListener(listener);
-        listener->subscribed(iter->second);
+        sioId = generateRandomString(SID_LENGTH);
+        space->addListener(listener);
+        listener->subscribed(space);
     }
     return authed;
 }
 
 bool SioServer::leaveSpace(const std::string& spaceName, std::string& sioId)
 {
-    auto iter = mySpaces.find(spaceName);
-    if (iter == mySpaces.end()) {
-        OATPP_LOGd("SioServer", "SioServer could not find {} ", spaceName);
+    Space::Ptr space = getSpace(spaceName);
+    if (!space.get()) {
+        OATPP_LOGw("SioServer", "leaveSpace could not find {} ", spaceName);
         return false;
     }
-    auto listener = iter->second->getListener(sioId);
+    space->removeListener(sioId);
+
+    auto listener = space->getListener(sioId);
     if (listener.get()) {
-        iter->second->removeListener(sioId);
-        listener->left(iter->second);
+        listener->left(space);
     }
     return true;
 }
