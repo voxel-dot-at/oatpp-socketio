@@ -8,8 +8,8 @@ add_library(oatpp-socketio SHARED
     eio/connection.cpp
     eio/messagePool.cpp
     eio/wsConnection.cpp
-    sio/namespace.cpp
-    sio/sioConnector.cpp
+    sio/space.cpp
+    sio/adapter.cpp
     sio/sioServer.cpp
     webapi/swaggerComponent.cpp
     webapi/webApi.cpp

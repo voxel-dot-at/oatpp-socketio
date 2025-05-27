@@ -3,7 +3,7 @@
 #include "oatpp/json/Serializer.hpp"
 #include "oatpp/json/ObjectMapper.hpp"
 
-#include "oatpp_sio/sio/sioConnector.hpp"
+#include "oatpp_sio/sio/adapter.hpp"
 #include "oatpp_sio/sio/sioServer.hpp"
 
 #include <iostream>

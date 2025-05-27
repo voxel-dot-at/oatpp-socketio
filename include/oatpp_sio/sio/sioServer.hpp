@@ -7,7 +7,7 @@
 #include "oatpp_sio/eio/engineIo.hpp"
 #include "oatpp_sio/eio/connection.hpp"
 
-#include "oatpp_sio/sio/namespace.hpp"
+#include "oatpp_sio/sio/space.hpp"
 
 namespace oatpp_sio {
 namespace sio {

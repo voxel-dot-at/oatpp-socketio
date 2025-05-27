@@ -21,7 +21,7 @@
 #include <thread>
 
 #include "oatpp_sio/webapi/webApp.hpp"
-#include "oatpp_sio/sio/namespace.hpp"
+#include "oatpp_sio/sio/space.hpp"
 #include "oatpp_sio/eio/engineIo.hpp"
 
 using namespace std;

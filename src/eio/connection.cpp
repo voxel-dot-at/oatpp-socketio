@@ -7,7 +7,7 @@
 #include "oatpp_sio/eio/wsConnection.hpp"
 #include "oatpp_sio/eio/engineIo.hpp"
 
-#include "oatpp_sio/sio/sioConnector.hpp"
+#include "oatpp_sio/sio/adapter.hpp"
 
 using namespace oatpp_sio::eio;
 using namespace std;

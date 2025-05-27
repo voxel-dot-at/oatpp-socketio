@@ -15,7 +15,7 @@
 #include "oatpp_sio/eio/engineIo.hpp"
 #include "oatpp_sio/eio/messageReceiver.hpp"
 
-#include "oatpp_sio/sio/sioConnector.hpp"
+#include "oatpp_sio/sio/adapter.hpp"
 
 class WSConnection;
 typedef std::shared_ptr<WSConnection> WsConnPtr;

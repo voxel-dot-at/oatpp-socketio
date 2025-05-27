@@ -8,7 +8,7 @@
 #include "oatpp_sio/eio/connection.hpp"
 #include "oatpp_sio/eio/messageReceiver.hpp"
 
-#include "oatpp_sio/sio/sioConnector.hpp"
+#include "oatpp_sio/sio/adapter.hpp"
 
 namespace oatpp_sio {
 

@@ -1,7 +1,7 @@
 #include "oatpp/async/ConditionVariable.hpp"
 #include "oatpp/async/Coroutine.hpp"
 
-#include "oatpp_sio/sio/namespace.hpp"
+#include "oatpp_sio/sio/space.hpp"
 
 #include "oatpp_sio/eio/engineIo.hpp"
 
