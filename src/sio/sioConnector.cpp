@@ -82,7 +82,7 @@ static bool parseMsg(const std::string& data, std::string& nbin,
     if (data[i] >= '0' && data[i] <= '9') {
         // TODO: parse # binary packets of available.
         unsigned int start = i;
-        for (; i < data.size(); i++) {
+        for (; i < data.size() - 1; i++) {
             if (data[i] < '0' || data[i] > '9') {
                 break;
             }
@@ -99,7 +99,7 @@ static bool parseMsg(const std::string& data, std::string& nbin,
         // collect namespace:
         unsigned int start = i;
 
-        for (; i < data.size(); i++) {
+        for (; i < data.size() - 1; i++) {
             if (data[i] == ',') {
                 break;
             }
@@ -149,7 +149,7 @@ void SioAdapter::onSioEvent(const std::string& data)
     {
         auto self = eioConn->getSio();
         auto msg = std::make_shared<oatpp_sio::Message>();
-        msg->body =  payload;
+        msg->body = payload;
         auto space = SioServer::serverInstance().getSpace(nsp);
         space->publish(space, self, msg);
     }
@@ -160,7 +160,7 @@ void SioAdapter::onSioEvent(const std::string& data)
         if (nsp != "/") {  // encode namespace
             encoded += nsp + ",";
         }
-        encoded += ackId + "[]";
+        encoded += ackId + "";
 
         auto msg = std::make_shared<oatpp_sio::Message>();
         msg->body = encoded;

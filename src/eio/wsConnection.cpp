@@ -54,7 +54,7 @@ oatpp::async::CoroutineStarter WSConnection::readMessage(
 
     auto wholeMessage = m_messageBuffer.toStdString();
     m_messageBuffer.setCurrentPosition(0);
-OATPP_LOGd(TAG, "onMessage RCV {}", wholeMessage);
+    OATPP_LOGd(TAG, "onMessage RCV {}", wholeMessage);
     if (this->recv) {
         switch (opcode) {
             case Frame::OPCODE_TEXT:
@@ -90,7 +90,8 @@ void WSConnection::closeSocketAsync()
         const std::shared_ptr<AsyncWebSocket> sock;
 
        public:
-        CloseConnCoroutine(const std::shared_ptr<AsyncWebSocket>& websocket)
+        explicit CloseConnCoroutine(
+            const std::shared_ptr<AsyncWebSocket>& websocket)
             : sock(websocket)
         {
         }
