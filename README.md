@@ -46,3 +46,6 @@ The API will now be running and accessible. You can view the Swagger API documen
 
    http://localhost:8000/swagger/ui#/
 
+## Acknowledgements
+
+Parts of this project have been developed with funding from the European Union’s Horizon Europe research and innovation programme under Grant Agreement No 101070599.
